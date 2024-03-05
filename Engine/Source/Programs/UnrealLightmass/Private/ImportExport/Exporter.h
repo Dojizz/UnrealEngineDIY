@@ -14,6 +14,7 @@ namespace Lightmass
 	class FLightmassSwarm;
 	class FStaticLightingTextureMappingResult;
 	class FStaticLightingVertexMappingResult;
+	struct FPhotonElement;
 
 	//@todo - need to pass to Serialization
 	class FLightmassSolverExporter
@@ -53,6 +54,11 @@ namespace Lightmass
 			const FVector4& VolumeExtent, 
 			const TMap<FGuid,TArray<class FVolumeLightingSample> >& VolumeSamples) const;
 
+		/** 导出photons到Unreal */
+		void ExportPhotons(const TArray<struct FPhotonElement>& DirectPhotons,
+			const TArray<struct FPhotonElement>& FirstBouncePhotons,
+			const TArray<struct FPhotonElement>& SecondBouncePhotons) const;
+
 		/** Exports dominant shadow information to Unreal. */
 		void ExportStaticShadowDepthMap(const FGuid& LightGuid, const class FStaticShadowDepthMap& StaticShadowDepthMap) const;
 
@@ -66,7 +72,7 @@ namespace Lightmass
 		void ExportVolumeDistanceField(int32 VolumeSizeX, int32 VolumeSizeY, int32 VolumeSizeZ, float VolumeMaxDistance, const FBox& DistanceFieldVolumeBounds, const TArray<FColor>& VolumeDistanceField) const;
 
 	private:
-		class FLightmassSwarm*	Swarm;
+		class FLightmassSwarm* Swarm;
 		const class FScene& Scene;
 
 		/** true if the exporter should dump out textures to disk for previewing */

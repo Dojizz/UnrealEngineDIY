@@ -140,6 +140,7 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 ,	NextVolumeSampleTaskIndex(-1)
 ,	NumVolumeSampleTasksOutstanding(0)
 ,	bShouldExportVolumeSampleData(false)
+,   bShouldExportPhotonsData(false)
 ,	VolumeLightingInterpolationOctree(FVector4(0,0,0), HALF_WORLD_MAX)
 ,	bShouldExportMeshAreaLightData(false)
 ,	bShouldExportVolumeDistanceField(false)
@@ -630,9 +631,6 @@ void FStaticLightingSystem::MultithreadProcess()
 		// Calculate volume samples now if they will be needed by the lighting threads for shading,
 		// Otherwise the volume samples will be calculated when the task is received from swarm.
 		BeginCalculateVolumeSamples();
-
-		// 加入一个新的流程，将光子数据写入lighting system的一个数据成员中
-
 	}
 
 	SetupPrecomputedVisibility();
@@ -718,6 +716,11 @@ void FStaticLightingSystem::MultithreadProcess()
 
 	// Apply any outstanding completed mappings.
 	CompleteTextureMappingList.ApplyAndClear( *this );
+
+	// 此时thread应该都已经结束，开始处理光子
+	// 用于将photon写入FStaticLightingSystem的三个photon array
+	BeginLoadPhotons();
+	bShouldExportPhotonsData = true;
 	ExportNonMappingTasks();
 
 	// Adjust worktime to represent the slowest thread, since that's when all threads were finished.
@@ -765,6 +768,24 @@ void FStaticLightingSystem::ExportNonMappingTasks()
 			Swarm->TaskCompleted( PrecomputedVolumeLightingGuid );
 		}
 	}
+
+	// TODOZZ: 使用Exporter导出photon数据到swarm，因为相关的过程都由主线程完成，因此此处photon的数据应该已经准备好
+	if (bShouldExportPhotonsData)
+	{
+		bShouldExportPhotonsData = false;
+		Exporter.ExportPhotons(
+			DirectPhotons,
+			FirstBouncePhotons,
+			SecondBouncePhotons);
+		// 释放photons
+		DirectPhotons.Empty();
+		FirstBouncePhotons.Empty();
+		SecondBouncePhotons.Empty();
+		// Tell Swarm the task is complete
+		FLightmassSwarm* Swarm = GetExporter().GetSwarm();
+		Swarm->TaskCompleted(PrecomputedPhotonsGuid);
+	}
+
 
 	CompleteVisibilityTaskList.ApplyAndClear(*this);
 	CompleteVolumetricLightmapTaskList.ApplyAndClear(*this);
@@ -1570,6 +1591,7 @@ FStaticLightingMapping*	FStaticLightingSystem::ThreadGetNextMapping(
 	uint32 WaitTime, 
 	bool& bWaitTimedOut, 
 	bool& bDynamicObjectTask, 
+	bool& bCollectPhotonTask,
 	int32& PrecomputedVisibilityTaskIndex,
 	int32& VolumetricLightmapTaskIndex,
 	bool& bStaticShadowDepthMapTask,
@@ -1581,6 +1603,7 @@ FStaticLightingMapping*	FStaticLightingSystem::ThreadGetNextMapping(
 	// Initialize output parameters
 	bWaitTimedOut = true;
 	bDynamicObjectTask = false;
+	bCollectPhotonTask = false;
 	PrecomputedVisibilityTaskIndex = INDEX_NONE;
 	VolumetricLightmapTaskIndex = INDEX_NONE;
 	bStaticShadowDepthMapTask = false;
@@ -1613,6 +1636,12 @@ FStaticLightingMapping*	FStaticLightingSystem::ThreadGetNextMapping(
 			{
 				bDynamicObjectTask = true;
 				Swarm->AcceptTask( TaskGuid );
+				bWaitTimedOut = false;
+			}
+			else if (TaskGuid == PrecomputedPhotonsGuid)
+			{
+				bCollectPhotonTask = true;
+				Swarm->AcceptTask(TaskGuid);
 				bWaitTimedOut = false;
 			}
 			else if (TaskGuid == MeshAreaLightDataGuid)
@@ -1691,6 +1720,7 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 
 	bool bSignaledMappingsComplete = false;
 	bool bIsDone = false;
+	float CurrentIdleTime = 0.f;
 	while (!bIsDone)
 	{
 		const double StartLoopTime = FPlatformTime::Seconds();
@@ -1707,6 +1737,7 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 				FPlatformAtomics::InterlockedDecrement(&NextCacheTask->TextureMapping->NumOutstandingCacheTasks);
 
 				bAnyTaskProcessedByThisThread = true;
+				
 			}
 
 			while (FInterpolateIndirectTaskDescription * NextInterpolateTask = InterpolateIndirectLightingTasks.Pop())
@@ -1717,6 +1748,7 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 				FPlatformAtomics::InterlockedDecrement(&NextInterpolateTask->TextureMapping->NumOutstandingInterpolationTasks);
 
 				bAnyTaskProcessedByThisThread = true;
+
 			}
 
 			bAnyTaskProcessedByThisThread |= ProcessVolumetricLightmapTaskIfAvailable();
@@ -1735,6 +1767,7 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 
 					bAnyTaskProcessedByThisThread = true;
 				}
+				
 			}
 
 			while (NumVolumeSampleTasksOutstanding > 0)
@@ -1760,6 +1793,7 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 		FGuid TaskGuid;
 		bool bRequestForTaskTimedOut;
 		bool bDynamicObjectTask;
+		bool bCollectPhotonTask;
 		int32 PrecomputedVisibilityTaskIndex;
 		int32 VolumetricLightmapTaskIndex;
 		bool bStaticShadowDepthMapTask;
@@ -1772,7 +1806,8 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 			TaskGuid, 
 			DefaultRequestForTaskTimeout, 
 			bRequestForTaskTimedOut, 
-			bDynamicObjectTask, 
+			bDynamicObjectTask,
+			bCollectPhotonTask,
 			PrecomputedVisibilityTaskIndex,
 			VolumetricLightmapTaskIndex,
 			bStaticShadowDepthMapTask,
@@ -1805,6 +1840,10 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 				FLightmassSwarm* Swarm = GetExporter().GetSwarm();
 				Swarm->TaskCompleted(PrecomputedVolumeLightingGuid);
 			}
+		}
+		else if (bCollectPhotonTask)
+		{
+			continue; // 这个task不需要做任何事，直接进入下一个循环
 		}
 		else if (PrecomputedVisibilityTaskIndex >= 0)
 		{
@@ -1845,6 +1884,10 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 				{
 					FPlatformProcess::Sleep(.001f);
 					IdleTime += FPlatformTime::Seconds() - StartLoopTime;
+					// TODOZZ: 一个丑陋的尝试解决死循环的方法，需要理清这里多线程的逻辑后重写
+					CurrentIdleTime += FPlatformTime::Seconds() - StartLoopTime;
+					if (CurrentIdleTime > 10.f)
+						bIsDone = true;
 				}
 			}
 		}

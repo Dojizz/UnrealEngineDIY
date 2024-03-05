@@ -75,6 +75,33 @@ namespace Lightmass
 		}
 	}
 
+	/** TODOZZ: 导出Photons数据到Unreal，需要和接受这一数据的FLightmassProcessor::ImportPhotons对应*/
+	void FLightmassSolverExporter::ExportPhotons(const TArray<FPhotonElement>& DirectPhotons,
+		const TArray<FPhotonElement>& FirstBouncePhotons,
+		const TArray<FPhotonElement>& SecondBouncePhotons) const
+	{
+		const FString ChannelName = CreateChannelName(PrecomputedPhotonsGuid, LM_PHOTONS_VERSION, LM_PHOTONS_EXTENSION);
+		const int32 ErrorCode = Swarm->OpenChannel(*ChannelName, LM_PHOTONS_CHANNEL_FLAGS, true);
+		if (ErrorCode >= 0)
+		{
+			// 写入当前array的元素个数，即光子数
+			const int32 NumDirectPhotons = DirectPhotons.Num();
+			const int32 NumFirstBouncePhotons = FirstBouncePhotons.Num();
+			const int32 NumSecondBouncePhotons = SecondBouncePhotons.Num();
+			Swarm->Write((void*)&NumDirectPhotons, sizeof(NumDirectPhotons));
+			WriteArray(DirectPhotons);
+			Swarm->Write((void*)&NumFirstBouncePhotons, sizeof(NumFirstBouncePhotons));
+			WriteArray(FirstBouncePhotons);
+			Swarm->Write((void*)&NumSecondBouncePhotons, sizeof(NumSecondBouncePhotons));
+			WriteArray(SecondBouncePhotons);
+			Swarm->CloseCurrentChannel();
+		}
+		else
+		{
+			UE_LOG(LogLightmass, Log, TEXT("Failed to open photons channel!"));
+		}
+	}
+
 	/** Exports dominant shadow information to Unreal. */
 	void FLightmassSolverExporter::ExportStaticShadowDepthMap(const FGuid& LightGuid, const FStaticShadowDepthMap& StaticShadowDepthMap) const
 	{
@@ -480,6 +507,7 @@ namespace Lightmass
 		}
 	}
 
+	// 这里负责export的是lightmap的信息，应该不需要关注，lightmap和volume sample共用了一个LM_VOLUMESAMPLES_CHANNEL_FLAGS
 	void FLightmassSolverExporter::ExportResults(const FVolumetricLightmapTaskData& TaskData) const
 	{
 		const FString ChannelName = CreateChannelName(TaskData.Guid, LM_VOLUMETRICLIGHTMAP_VERSION, LM_VOLUMETRICLIGHTMAP_EXTENSION);

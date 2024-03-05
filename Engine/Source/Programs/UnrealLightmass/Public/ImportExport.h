@@ -57,6 +57,7 @@ namespace Lightmass
 	static const TCHAR LM_DOMINANTSHADOW_EXTENSION[]	= TEXT("doms");
 	static const TCHAR LM_MESHAREALIGHTDATA_EXTENSION[]	= TEXT("arealights");
 	static const TCHAR LM_DEBUGOUTPUT_EXTENSION[]		= TEXT("dbgo");
+	static const TCHAR LM_PHOTONS_EXTENSION[]			= TEXT("phos");
 
 	/** Input channel types (extensions) */
 #if LM_COMPRESS_INPUT_DATA
@@ -77,7 +78,7 @@ namespace Lightmass
 
 	static const int32 LM_TEXTUREMAPPING_VERSION		= 1;
 	static const int32 LM_VOLUMESAMPLES_VERSION			= 1;
-	static const int32 LM_VOLUMETRICLIGHTMAP_VERSION		= 3;
+	static const int32 LM_VOLUMETRICLIGHTMAP_VERSION	= 3;
 	static const int32 LM_PRECOMPUTEDVISIBILITY_VERSION	= 1;
 	static const int32 LM_VOLUMEDEBUGOUTPUT_VERSION		= 1;
 	static const int32 LM_DOMINANTSHADOW_VERSION		= 1;
@@ -86,6 +87,7 @@ namespace Lightmass
 	static const int32 LM_SCENE_VERSION					= 1;
 	static const int32 LM_STATICMESH_VERSION			= 1;
 	static const int32 LM_MATERIAL_VERSION				= 1;
+	static const int32 LM_PHOTONS_VERSION				= 1;
 
 
 	/** Alert source object type identifiers... */
@@ -302,6 +304,20 @@ namespace Lightmass
 		float DirectionalLightShadowing;
 	};
 
+	/** FPhotonData，用于从swarm读取光子信息，结构和Lightmass::FPhoton保持一致*/
+	class FPhotonData
+	{
+	public:
+		/** Position that the photon was deposited at in XYZ, and Id in W for debugging. */
+		FVector4 PositionAndId;
+
+		/** Direction the photon came from in XYZ, and distance that the photon traveled along its last path before being deposited in W. */
+		FVector4 IncidentDirectionAndDistance;
+
+		/** Normal of the surface the photon was deposited on in XYZ, and fraction of the originating light's power that this photon represents in W. */
+		FVector4 SurfaceNormalAndPower;
+	};
+
 	/** Data used by the editor import process and not uploaded into textures. */
 	struct FIrradianceVoxelImportProcessingData
 	{
@@ -491,6 +507,9 @@ namespace Lightmass
 	static const FGuid VolumeLightingDebugOutputGuid = FGuid(0x1e8119ff, 0xa46f48f8, 0x92b18d49, 0x172c5832);
 	/** Guid used by Unreal to determine when the volume lighting sample channel with the same Guid can be opened. */
 	static const FGuid PrecomputedVolumeLightingGuid = FGuid(0xce97c5c3, 0xab614fd3, 0xb2da55c0, 0xe6c33fb4);
+
+	/** TODOZZ: 我不确定UE这里所使用的Guid是如何生成的，我直接使用一个随机生成的Guid，这很可能是错误的*/
+	static const FGuid PrecomputedPhotonsGuid = FGuid(0x78493287, 0x78493287, 0x78493287, 0x78493287);
 
 #if !PLATFORM_MAC && !PLATFORM_LINUX
 	#pragma pack(pop)

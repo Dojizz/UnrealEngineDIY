@@ -2320,6 +2320,73 @@ void FScene::RemovePrecomputedLightVolume(const FPrecomputedLightVolume* Volume)
 		});
 }
 
+// TODOZZ: 要实现一下三个map的Add&Remove
+void FScene::AddPrecomputedDirectPhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(AddDirectPhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedDirectPhotons.Add(Photon);
+	});
+}
+
+void FScene::RemovePrecomputedDirectPhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(RemoveDirectPhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedDirectPhotons.Remove(Photon);
+	});
+}
+
+void FScene::AddPrecomputedFirstBouncePhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(AddFirstBouncePhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedFirstBouncePhotons.Add(Photon);
+	});
+}
+
+void FScene::RemovePrecomputedFirstBouncePhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(RemoveFirstBouncePhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedFirstBouncePhotons.Remove(Photon);
+	});
+}
+
+void FScene::AddPrecomputedSecondBouncePhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(AddSecondBouncePhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedSecondBouncePhotons.Add(Photon);
+	});
+}
+
+void FScene::RemovePrecomputedSecondBouncePhoton(const FPrecomputedPhoton* Photon)
+{
+	FScene* Scene = this;
+
+	ENQUEUE_RENDER_COMMAND(RemoveSecondBouncePhotonCommand)
+		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
+	{
+		Scene->PrecomputedSecondBouncePhotons.Remove(Photon);
+	});
+}
+
 void FVolumetricLightmapSceneData::AddLevelVolume(const FPrecomputedVolumetricLightmap* InVolume, EShadingPath ShadingPath, bool bIsPersistentLevel)
 {
 	LevelVolumetricLightmaps.Add(InVolume);
@@ -3566,6 +3633,8 @@ void FScene::ApplyWorldOffset_RenderThread(const FVector& InOffset)
 	{
 		const_cast<FPrecomputedLightVolume*>(It)->ApplyWorldOffset(InOffset);
 	}
+
+	// TODOZZ: 可能在这里也需要加上对photon map的offset，暂时不管
 
 	// Precomputed visibility
 	if (PrecomputedVisibilityHandler)

@@ -2150,6 +2150,9 @@ private:
 	/** Places volume lighting samples and calculates lighting for them. */
 	void BeginCalculateVolumeSamples();
 
+	// 将photon装入array中
+	void BeginLoadPhotons();
+
 	/** 
 	 * Interpolates lighting from the volume lighting samples to a vertex. 
 	 * This mirrors FPrecomputedLightVolume::InterpolateIncidentRadiance in Unreal, used for visualizing interpolation from the lighting volume on surfaces.
@@ -2528,6 +2531,7 @@ private:
 		uint32 WaitTime, 
 		bool& bWaitTimedOut, 
 		bool& bDynamicObjectTask, 
+		bool& bCollectPhotonTask,
 		int32& PrecomputedVisibilityTaskIndex,
 		int32& VolumetricLightmapTaskIndex,
 		bool& DominantShadowTask,
@@ -2600,12 +2604,18 @@ private:
 	volatile int32 NextVolumeSampleTaskIndex;
 	volatile int32 NumVolumeSampleTasksOutstanding;
 	volatile int32 bShouldExportVolumeSampleData;
+	volatile int32 bShouldExportPhotonsData;
 	/** Bounds that VolumeLightingSamples were generated in. */
 	FBoxSphereBounds VolumeBounds;
 	/** Octree used for interpolating the volume lighting samples if DynamicObjectSettings.bVisualizeVolumeLightInterpolation is true. */
 	FVolumeLightingInterpolationOctree VolumeLightingInterpolationOctree;
 	/** Map from Level Guid to array of volume lighting samples generated. */
 	TMap<FGuid,TArray<FVolumeLightingSample> > VolumeLightingSamples;
+	// 存储光子的array
+	TArray<FPhotonElement> DirectPhotons;
+	TArray<FPhotonElement> FirstBouncePhotons;
+	TArray<FPhotonElement> SecondBouncePhotons;
+
 
 	/** All precomputed visibility cells in the scene.  Some of these may be processed on other agents. */
 	TArray<FPrecomputedVisibilityCell> AllPrecomputedVisibilityCells;

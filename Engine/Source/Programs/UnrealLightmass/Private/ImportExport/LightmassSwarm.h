@@ -25,6 +25,7 @@ namespace Lightmass
 
 /** Flags to use when opening the different kinds of output channels */
 /** MUST PAIR APPROPRIATELY WITH THE SAME FLAGS IN UE4 */
+/** 对应地，UE4中的对应flags应该是READ*/
 static const int32 LM_TEXTUREMAPPING_CHANNEL_FLAGS	= NSwarm::SWARM_JOB_CHANNEL_WRITE;
 static const int32 LM_VOLUMESAMPLES_CHANNEL_FLAGS		= NSwarm::SWARM_JOB_CHANNEL_WRITE;
 static const int32 LM_PRECOMPUTEDVISIBILITY_CHANNEL_FLAGS	= NSwarm::SWARM_JOB_CHANNEL_WRITE;
@@ -32,6 +33,7 @@ static const int32 LM_VOLUMEDEBUGOUTPUT_CHANNEL_FLAGS	= NSwarm::SWARM_JOB_CHANNE
 static const int32 LM_DOMINANTSHADOW_CHANNEL_FLAGS	= NSwarm::SWARM_JOB_CHANNEL_WRITE;
 static const int32 LM_MESHAREALIGHT_CHANNEL_FLAGS		= NSwarm::SWARM_JOB_CHANNEL_WRITE;
 static const int32 LM_DEBUGOUTPUT_CHANNEL_FLAGS		= NSwarm::SWARM_JOB_CHANNEL_WRITE;
+static const int32 LM_PHOTONS_CHANNEL_FLAGS = NSwarm::SWARM_JOB_CHANNEL_WRITE;
 
 /** Flags to use when opening the different kinds of input channels */
 /** MUST PAIR APPROPRIATELY WITH THE SAME FLAGS IN UE4 */

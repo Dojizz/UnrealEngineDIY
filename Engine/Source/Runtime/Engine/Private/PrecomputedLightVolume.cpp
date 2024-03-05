@@ -526,3 +526,270 @@ void FPrecomputedLightVolume::ApplyWorldOffset(const FVector& InOffset)
 {
 	WorldOriginOffset+= InOffset;
 }
+
+
+// 统计数据，或许无大用
+DECLARE_MEMORY_STAT(TEXT("Precomputed Photon"), STAT_PrecomputedPhotonData, STATGROUP_MapBuildData);
+
+// 在这里写photon相关的实现
+FPhotonSample::FPhotonSample(const FPhotonSample& Other)
+{
+	Position = Other.Position;
+	Id = Other.Id;
+	IncidentDirection = Other.IncidentDirection;
+	Distance = Other.Distance;
+	SurfaceNormal = Other.SurfaceNormal;
+	Power = Other.Power;
+}
+
+FArchive& operator<<(FArchive& Ar, FPhotonSample& Sample)
+{
+	Ar << Sample.Position;
+	Ar << Sample.Id;
+	Ar << Sample.IncidentDirection;
+	Ar << Sample.Distance;
+	Ar << Sample.SurfaceNormal;
+	Ar << Sample.Power;
+	return Ar;
+}
+
+FPrecomputedPhotonData::FPrecomputedPhotonData() :
+	bInitialized(false),
+	PhotonOctree(FVector::ZeroVector, HALF_WORLD_MAX)
+{}
+
+FPrecomputedPhotonData::~FPrecomputedPhotonData()
+{
+	if (bInitialized)
+	{
+		const SIZE_T VolumeBytes = GetAllocatedBytes();
+		DEC_DWORD_STAT_BY(STAT_PrecomputedPhotonData, VolumeBytes);
+	}
+}
+
+static void LoadPhotonSamples(FArchive& Ar, TArray<FPhotonSample>& Samples)
+{
+	TArray<FPhotonSample> DummySamples;
+	Ar << DummySamples;
+	for (FPhotonSample& LoadedSample : DummySamples)
+	{
+		Samples.Add(FPhotonSample(LoadedSample));
+	}
+}
+
+FArchive& operator<<(FArchive& Ar, FPrecomputedPhotonData& Photon)
+{
+	Ar.UsingCustomVersion(FRenderingObjectVersion::GUID);
+
+	if (Ar.IsCountingMemory())
+	{
+		const int32 AllocatedBytes = Photon.GetAllocatedBytes();
+		Ar.CountBytes(AllocatedBytes, AllocatedBytes);
+	}
+	else if (Ar.IsLoading())
+	{
+		bool bPhotonInitialized = false;
+		Ar << bPhotonInitialized; // Volume.bInitilized will be set in Volume.Initialize() call
+		if (bPhotonInitialized)
+		{
+			FBox Bounds;
+			Ar << Bounds;
+			float SampleSpacing = 0.0f;
+			Ar << SampleSpacing;
+			Photon.Initialize(Bounds);
+
+			TArray<FPhotonSample> PhotonSamples;
+			LoadPhotonSamples(Ar, PhotonSamples);
+
+			// Deserialize samples as an array, and add them to the octree
+			
+			for (int32 SampleIndex = 0; SampleIndex < PhotonSamples.Num(); SampleIndex++)
+			{
+				Photon.AddPhotonSample(PhotonSamples[SampleIndex]);
+			}
+
+			Photon.FinalizeSamples();
+		}
+	}
+	else if (Ar.IsSaving())
+	{
+		Ar << Photon.bInitialized;
+		if (Photon.bInitialized)
+		{
+			Ar << Photon.Bounds;
+			float SampleSpacing = 0.0f;
+			Ar << SampleSpacing;
+
+			TArray<FPhotonSample> PhotonSamples;
+			// Gather an array of samples from the octree
+			Photon.PhotonOctree.FindAllElements([&PhotonSamples](const FPhotonSample& Sample)
+			{
+				PhotonSamples.Add(Sample);
+			});
+			Ar << PhotonSamples;
+		}
+	}
+	return Ar;
+}
+
+FArchive& operator<<(FArchive& Ar, FPrecomputedPhotonData*& Photon)
+{
+	bool bValid = Photon != NULL;
+	Ar << bValid;
+	if (bValid)
+	{
+		if (Ar.IsLoading())
+		{
+			Photon = new FPrecomputedPhotonData();
+		}
+		Ar << (*Photon);
+	}
+	return Ar;
+}
+
+/** Frees any previous samples, prepares the photon to have new samples added. */
+void FPrecomputedPhotonData::Initialize(const FBox& NewBounds)
+{
+	InvalidateLightingCache();
+	bInitialized = true;
+	Bounds = NewBounds;
+	// Initialize the octree based on the passed in bounds
+	PhotonOctree = FPhotonOctree(NewBounds.GetCenter(), NewBounds.GetExtent().GetMax());
+}
+
+/** Adds a photon sample. */
+void FPrecomputedPhotonData::AddPhotonSample(const FPhotonSample& NewPhotonSample)
+{
+	check(bInitialized);
+	PhotonOctree.AddElement(NewPhotonSample);
+}
+
+/** Shrinks the octree and updates memory stats. */
+void FPrecomputedPhotonData::FinalizeSamples()
+{
+	check(bInitialized);
+	PhotonOctree.ShrinkElements();
+	const SIZE_T VolumeBytes = GetAllocatedBytes();
+	INC_DWORD_STAT_BY(STAT_PrecomputedPhotonData, VolumeBytes);
+}
+
+/** Invalidates anything produced by the last lighting build. */
+void FPrecomputedPhotonData::InvalidateLightingCache()
+{
+	if (bInitialized)
+	{
+		// Release existing samples
+		const SIZE_T VolumeBytes = GetAllocatedBytes();
+		DEC_DWORD_STAT_BY(STAT_PrecomputedPhotonData, VolumeBytes);
+		PhotonOctree.Destroy();
+		bInitialized = false;
+	}
+}
+
+SIZE_T FPrecomputedPhotonData::GetAllocatedBytes() const
+{
+	SIZE_T NodeBytes = 0;
+	NodeBytes += PhotonOctree.GetSizeBytes();
+	return NodeBytes;
+}
+
+FPrecomputedPhoton::FPrecomputedPhoton() :
+	Data(NULL),
+	bAddedToScene(false),
+	OctreeForRendering(NULL),
+	WorldOriginOffset(ForceInitToZero)
+{}
+
+FPrecomputedPhoton::~FPrecomputedPhoton()
+{
+}
+
+// TODOZZ: 这里的add/remove to scene需要补充实现Registry中的对应函数，现在还无法实现
+// 通过bounce number判断photon类型，通过guid在registry中拿对应level guid的数据，然后存到scene中
+// 还没完成，需要写scene中的import部分
+void FPrecomputedPhoton::AddToScene(FSceneInterface* Scene, UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId, int32 BounceNum)
+{
+	check(!bAddedToScene);
+	const FPrecomputedPhotonData* NewData = NULL;
+	if (Registry)
+	{
+		if (BounceNum == 0)
+			NewData = Registry->GetLevelPrecomputedDirectPhotonBuildData(LevelBuildDataId);
+		else if (BounceNum == 1)
+			NewData = Registry->GetLevelPrecomputedFirstBouncePhotonBuildData(LevelBuildDataId);
+		else
+			NewData = Registry->GetLevelPrecomputedSecondBouncePhotonBuildData(LevelBuildDataId);
+	}
+
+	if (NewData && NewData->bInitialized && Scene)
+	{
+		bAddedToScene = true;
+		FPrecomputedPhoton* Photon = this;
+		ENQUEUE_RENDER_COMMAND(SetVolumeDataCommand)
+			([Photon, NewData, Scene](FRHICommandListImmediate& RHICmdList)
+			{
+				Photon->SetData(NewData, Scene);
+			});
+		if (BounceNum == 0)
+			Scene->AddPrecomputedDirectPhoton(this);
+		else if (BounceNum == 1)
+			Scene->AddPrecomputedFirstBouncePhoton(this);
+		else
+			Scene->AddPrecomputedSecondBouncePhoton(this);
+	}
+	
+}
+
+// TODOZZ: 同上
+void FPrecomputedPhoton::RemoveFromScene(FSceneInterface* Scene, int32 BounceNum)
+{
+	if (bAddedToScene)
+	{
+		bAddedToScene = false;
+
+		if (Scene)
+		{
+			if (BounceNum == 0)
+				Scene->RemovePrecomputedDirectPhoton(this);
+			else if (BounceNum == 1)
+				Scene->RemovePrecomputedFirstBouncePhoton(this);
+			else
+				Scene->RemovePrecomputedSecondBouncePhoton(this);
+		}
+	}
+
+	WorldOriginOffset = FVector::ZeroVector;
+}
+
+void FPrecomputedPhoton::SetData(const FPrecomputedPhotonData* NewData, FSceneInterface* Scene)
+{
+	Data = NewData;
+	OctreeForRendering = &Data->PhotonOctree;
+}
+
+// 控制对photon的绘制，当前直接绘制，可以指定颜色
+void FPrecomputedPhoton::DebugDrawSamples(FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color) const
+{
+	OctreeForRendering->FindAllElements([bDrawDirectionalShadowing, PDI, this, color](const FPhotonSample& PhotonSample)
+	{
+
+		FVector SamplePosition = PhotonSample.Position + WorldOriginOffset; //relocate from volume to world space
+		PDI->DrawPoint(SamplePosition, color, 4, SDPG_World);
+	});
+}
+
+bool FPrecomputedPhoton::IntersectBounds(const FBoxSphereBounds& InBounds) const
+{
+	if (OctreeForRendering)
+	{
+		FBox VolumeBounds = OctreeForRendering->GetRootBounds().GetBox();
+		return InBounds.GetBox().Intersect(VolumeBounds);
+	}
+
+	return false;
+}
+
+void FPrecomputedPhoton::ApplyWorldOffset(const FVector& InOffset)
+{
+	WorldOriginOffset += InOffset;
+}

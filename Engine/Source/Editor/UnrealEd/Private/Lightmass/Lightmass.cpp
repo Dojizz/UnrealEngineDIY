@@ -104,6 +104,7 @@ int32 FLightmassProcessor::MaxProcessAvailableCount = 8;
 static const float AllowedAmortizationTimePerTick = 0.01f; // in seconds
 
 volatile int32 FLightmassProcessor::VolumeSampleTaskCompleted = 0;
+volatile int32 FLightmassProcessor::PhotonsTaskCompleted = 0;
 volatile int32 FLightmassProcessor::MeshAreaLightDataTaskCompleted = 0;
 volatile int32 FLightmassProcessor::VolumeDistanceFieldTaskCompleted = 0;
 
@@ -117,6 +118,8 @@ static NSwarm::TChannelFlags LM_VOLUMEDEBUGOUTPUT_CHANNEL_FLAGS	= NSwarm::SWARM_
 static NSwarm::TChannelFlags LM_DOMINANTSHADOW_CHANNEL_FLAGS	= NSwarm::SWARM_JOB_CHANNEL_READ;
 static NSwarm::TChannelFlags LM_MESHAREALIGHT_CHANNEL_FLAGS		= NSwarm::SWARM_JOB_CHANNEL_READ;
 static NSwarm::TChannelFlags LM_DEBUGOUTPUT_CHANNEL_FLAGS		= NSwarm::SWARM_JOB_CHANNEL_READ;
+static NSwarm::TChannelFlags LM_PHOTONS_CHANNEL_FLAGS			= NSwarm::SWARM_JOB_CHANNEL_READ;
+
 
 /** Flags to use when opening the different kinds of output channels */
 /** MUST PAIR APPROPRIATELY WITH THE SAME FLAGS IN LIGHTMASS */
@@ -375,13 +378,20 @@ void FLightmassProcessor::SwarmCallback( NSwarm::FMessage* CallbackMessage, void
 					break;
 				case NSwarm::JOB_TASK_STATE_COMPLETE_SUCCESS:
 				{
+					// TODOZZ: 和Guid的定义位置相似，我不确定在这里的修改是否能work
 					FGuid PrecomputedVolumeLightingGuid = Lightmass::PrecomputedVolumeLightingGuid;
+					FGuid PrecomputedPhotonsGuid = Lightmass::PrecomputedPhotonsGuid;
 					FGuid MeshAreaLightDataGuid = Lightmass::MeshAreaLightDataGuid;
 					FGuid VolumeDistanceFieldGuid = Lightmass::VolumeDistanceFieldGuid;
 					if (TaskStateMessage->TaskGuid == PrecomputedVolumeLightingGuid)
 					{
 						FPlatformAtomics::InterlockedIncrement( &VolumeSampleTaskCompleted );
 						FPlatformAtomics::InterlockedIncrement( &Processor->NumCompletedTasks );
+					}
+					else if (TaskStateMessage->TaskGuid == PrecomputedPhotonsGuid)
+					{
+						FPlatformAtomics::InterlockedIncrement(&PhotonsTaskCompleted);
+						FPlatformAtomics::InterlockedIncrement(&Processor->NumCompletedTasks);
 					}
 					else if (Processor->Exporter->VisibilityBucketGuids.Contains(TaskStateMessage->TaskGuid))
 					{
@@ -2977,6 +2987,7 @@ bool FLightmassProcessor::BeginRun()
 
 	double SwarmJobStartTime = FPlatformTime::Seconds();
 	VolumeSampleTaskCompleted = 0;
+	PhotonsTaskCompleted = 0;
 	MeshAreaLightDataTaskCompleted = 0;
 	VolumeDistanceFieldTaskCompleted = 0;
 
@@ -3232,6 +3243,22 @@ bool FLightmassProcessor::BeginRun()
 			}
 		}
 
+		// TODOZZ: 添加photons task，我不确定这是否足够
+		{
+			NSwarm::FTaskSpecification NewTaskSpecification(Lightmass::PrecomputedPhotonsGuid, TEXT("Photons"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS);
+			NewTaskSpecification.Cost = INT_MAX;
+			ErrorCode = Swarm.AddTask(NewTaskSpecification);
+			if (ErrorCode >= 0)
+			{
+				NumTotalSwarmTasks++;
+			}
+			else
+			{
+				UE_LOG(LogLightmassSolver, Warning, TEXT("Error, AddTask failed with error code %d"), ErrorCode);
+				bProcessingFailed = true;
+			}
+		}
+
 		{
 			NSwarm::FTaskSpecification NewTaskSpecification( Lightmass::MeshAreaLightDataGuid, TEXT("MeshAreaLightData"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS );
 			NewTaskSpecification.Cost = 1000;
@@ -3340,6 +3367,8 @@ bool FLightmassProcessor::BeginRun()
 		}
 	}
 
+
+
 	int32 EndJobErrorCode = Swarm.EndJobSpecification();
 	if( EndJobErrorCode < 0 )
 	{
@@ -3434,6 +3463,8 @@ bool FLightmassProcessor::CompleteRun()
 	if ( !bProcessingFailed && !GEditor->GetMapBuildCancelled() )
 	{
 		ImportVolumeSamples();
+
+		ImportPhotons();
 
 		if (Exporter->VolumetricLightmapTaskGuids.Num() > 0)
 		{
@@ -3616,6 +3647,143 @@ void FLightmassProcessor::ImportVolumeSamples()
 		}
 		FPlatformAtomics::InterlockedExchange(&VolumeSampleTaskCompleted, 0);
 	}
+}
+
+/** TODOZZ: 同上，需要一个函数用于import photons*/
+void FLightmassProcessor::ImportPhotons()
+{
+	// 这里需要参考lightmass端的数据传输再写，即FLightmassSolverExporter::ExportPhotons
+	if (PhotonsTaskCompleted > 0) {
+		const FString ChannelName = Lightmass::CreateChannelName(Lightmass::PrecomputedPhotonsGuid, Lightmass::LM_PHOTONS_VERSION, Lightmass::LM_PHOTONS_EXTENSION);
+		const int32 Channel = Swarm.OpenChannel(*ChannelName, LM_PHOTONS_CHANNEL_FLAGS);
+		if (Channel >= 0)
+		{
+			// 参考ImportVolumeSamples，将photons加入level对应场景数据中
+			FGuid LevelGuid;
+			ULevel* CurrentLevel = FindLevel(LevelGuid);
+
+			// 读取数据
+			int32 NumDirectPhotons;
+			Swarm.ReadChannel(Channel, &NumDirectPhotons, sizeof(NumDirectPhotons));
+			TArray<Lightmass::FPhotonData> DirectPhotons;
+			ReadArray(Channel, DirectPhotons);
+
+			// Only build precomputed light for visible streamed levels
+			if (CurrentLevel && CurrentLevel->bIsVisible)
+			{
+				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
+				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
+				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedDirectPhotonBuildData(CurrentLevel->LevelBuildDataId);
+				FBox LevelDirectPhotonsBounds(ForceInit);
+				// 得到当前photon map的bounding box
+				for (int32 SampleIndex = 0; SampleIndex < NumDirectPhotons; SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = DirectPhotons[SampleIndex];
+					FVector SampleMin = CurrentSample.PositionAndId;
+					FVector SampleMax = CurrentSample.PositionAndId;
+					LevelDirectPhotonsBounds += FBox(SampleMin, SampleMax);
+				}
+				// 将每个sample加入CurrentLevelData
+				CurrentLevelData.Initialize(LevelDirectPhotonsBounds);
+				for (int32 SampleIndex = 0; SampleIndex < DirectPhotons.Num(); SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = DirectPhotons[SampleIndex];
+					FPhotonSample NewPhotonSample;
+					NewPhotonSample.Position = CurrentSample.PositionAndId;
+					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
+					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;
+					NewPhotonSample.Distance = CurrentSample.IncidentDirectionAndDistance.W;
+					NewPhotonSample.SurfaceNormal = CurrentSample.SurfaceNormalAndPower;
+					NewPhotonSample.Power = CurrentSample.SurfaceNormalAndPower.W;
+					// 加入current level data
+					CurrentLevelData.AddPhotonSample(NewPhotonSample);
+				}
+				CurrentLevelData.FinalizeSamples();
+			}
+
+			// 对first/second bounce photons同样读取
+			int32 NumFirstBouncePhotons;
+			Swarm.ReadChannel(Channel, &NumFirstBouncePhotons, sizeof(NumFirstBouncePhotons));
+			TArray<Lightmass::FPhotonData> FirstBouncePhotons;
+			ReadArray(Channel, FirstBouncePhotons);
+
+			if (CurrentLevel && CurrentLevel->bIsVisible)
+			{
+				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
+				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
+				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedFirstBouncePhotonBuildData(CurrentLevel->LevelBuildDataId);
+				FBox LevelFirstBouncePhotonsBounds(ForceInit);
+				// 得到当前photon map的bounding box
+				for (int32 SampleIndex = 0; SampleIndex < NumFirstBouncePhotons; SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = FirstBouncePhotons[SampleIndex];
+					FVector SampleMin = CurrentSample.PositionAndId;
+					FVector SampleMax = CurrentSample.PositionAndId;
+					LevelFirstBouncePhotonsBounds += FBox(SampleMin, SampleMax);
+				}
+				// 将每个sample加入CurrentLevelData
+				CurrentLevelData.Initialize(LevelFirstBouncePhotonsBounds);
+				for (int32 SampleIndex = 0; SampleIndex < FirstBouncePhotons.Num(); SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = FirstBouncePhotons[SampleIndex];
+					FPhotonSample NewPhotonSample;
+					NewPhotonSample.Position = CurrentSample.PositionAndId;
+					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
+					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;
+					NewPhotonSample.Distance = CurrentSample.IncidentDirectionAndDistance.W;
+					NewPhotonSample.SurfaceNormal = CurrentSample.SurfaceNormalAndPower;
+					NewPhotonSample.Power = CurrentSample.SurfaceNormalAndPower.W;
+					// 加入current level data
+					CurrentLevelData.AddPhotonSample(NewPhotonSample);
+				}
+				CurrentLevelData.FinalizeSamples();
+			}
+
+			int32 NumSecondBouncePhotons;
+			Swarm.ReadChannel(Channel, &NumSecondBouncePhotons, sizeof(NumSecondBouncePhotons));
+			TArray<Lightmass::FPhotonData> SecondBouncePhotons;
+			ReadArray(Channel, SecondBouncePhotons);
+
+			if (CurrentLevel && CurrentLevel->bIsVisible)
+			{
+				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
+				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
+				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedSecondBouncePhotonBuildData(CurrentLevel->LevelBuildDataId);
+				FBox LevelSecondBouncePhotonsBounds(ForceInit);
+				// 得到当前photon map的bounding box
+				for (int32 SampleIndex = 0; SampleIndex < NumSecondBouncePhotons; SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = SecondBouncePhotons[SampleIndex];
+					FVector SampleMin = CurrentSample.PositionAndId;
+					FVector SampleMax = CurrentSample.PositionAndId;
+					LevelSecondBouncePhotonsBounds += FBox(SampleMin, SampleMax);
+				}
+				// 将每个sample加入CurrentLevelData
+				CurrentLevelData.Initialize(LevelSecondBouncePhotonsBounds);
+				for (int32 SampleIndex = 0; SampleIndex < SecondBouncePhotons.Num(); SampleIndex++)
+				{
+					const Lightmass::FPhotonData& CurrentSample = SecondBouncePhotons[SampleIndex];
+					FPhotonSample NewPhotonSample;
+					NewPhotonSample.Position = CurrentSample.PositionAndId;
+					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
+					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;
+					NewPhotonSample.Distance = CurrentSample.IncidentDirectionAndDistance.W;
+					NewPhotonSample.SurfaceNormal = CurrentSample.SurfaceNormalAndPower;
+					NewPhotonSample.Power = CurrentSample.SurfaceNormalAndPower.W;
+					// 加入current level data
+					CurrentLevelData.AddPhotonSample(NewPhotonSample);
+				}
+				CurrentLevelData.FinalizeSamples();
+			}
+
+		}
+		else
+		{
+			UE_LOG(LogLightmassSolver, Log, TEXT("Error, OpenChannel failed to open %s with error code %d"), *ChannelName, Channel);
+		}
+		FPlatformAtomics::InterlockedExchange(&PhotonsTaskCompleted, 0);
+	}
+
 }
 
 /** Imports precomputed visibility */

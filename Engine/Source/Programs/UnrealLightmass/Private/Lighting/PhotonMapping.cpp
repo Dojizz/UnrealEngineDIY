@@ -1442,9 +1442,9 @@ void FStaticLightingSystem::CalculateIrradiancePhotons(const FBoxSphereBounds& I
 	IrradianceCalculationWorkRanges.Empty();
 
 	// Release all of the direct photon map memory since we are not going to need it later
-	DirectPhotonMap.Destroy();
+	// DirectPhotonMap.Destroy();
 	// Release all of the second bounce photon map memory since it will not be used again
-	SecondBouncePhotonMap.Destroy();
+	// SecondBouncePhotonMap.Destroy();
 }
 
 uint32 FIrradiancePhotonCalculatingThreadRunnable::Run()
@@ -2504,5 +2504,28 @@ FLinearColor FStaticLightingSystem::CalculatePhotonExitantRadiance(
 	return AccumulatedRadiance;
 }
 
+// TODOZZ:
+// 实现load函数，将photon map从八叉树转换到<guid, array>
+// 具体来说，处理DirectPhotonMap，FirstBouncePhotonMap，SecondBouncePhotonMap
+void FStaticLightingSystem::BeginLoadPhotons() {
+	// 计算八叉树中元素个数，分配空间
+	int32 DirectPhotonsNum = DirectPhotonMap.GetElementCount();
+	int32 FirstBouncePhotonsNum = FirstBouncePhotonMap.GetElementCount();
+	int32 SecondBouncePhotonsNum = SecondBouncePhotonMap.GetElementCount();
+	
+	// 逐个加入array
+	DirectPhotons.Empty(DirectPhotonsNum);
+	TArray<FPhotonElement>* DirectPhotonsArray = &DirectPhotons;
+	DirectPhotonMap.GetElementArray(DirectPhotonsArray);
+
+	FirstBouncePhotons.Empty(FirstBouncePhotonsNum);
+	TArray<FPhotonElement>* FirstBouncePhotonsArray = &FirstBouncePhotons;
+	FirstBouncePhotonMap.GetElementArray(FirstBouncePhotonsArray);
+
+	SecondBouncePhotons.Empty(SecondBouncePhotonsNum);
+	TArray<FPhotonElement>* SecondBouncePhotonsArray = &SecondBouncePhotons;
+	SecondBouncePhotonMap.GetElementArray(SecondBouncePhotonsArray);
+
+}
 
 }

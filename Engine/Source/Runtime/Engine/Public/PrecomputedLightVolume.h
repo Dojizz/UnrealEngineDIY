@@ -212,3 +212,128 @@ private:
 	/** Offset from world origin. Non-zero only when world origin was rebased */
 	FVector WorldOriginOffset;
 };
+
+/** 简单起见，我同样在这里写photon的类，未来可以移动到新的文件中*/
+// 仅仅保留必要的内容，这里的Sample和前面定义的FPhotonData是一致的
+
+class FPhotonSample
+{
+public:
+	FVector Position;
+	float Id;
+	FVector IncidentDirection;
+	float Distance;
+	FVector SurfaceNormal;
+	float Power;
+
+	FPhotonSample() :
+		Position(FVector(0, 0, 0)),
+		Id(0),
+		IncidentDirection(FVector(0, 0, 1)),
+		Distance(1.f),
+		SurfaceNormal(FVector(0, 0, 1)),
+		Power(1.f)
+	{
+	}
+
+	FPhotonSample(const FPhotonSample& Other);
+	friend FArchive& operator<<(FArchive& Ar, FPhotonSample& Sample);
+};
+
+// 为了计算可见性，同样有必要利用octree
+struct FPhotonOctreeSemantics
+{
+	enum { MaxElementsPerLeaf = 4 };
+	enum { MaxNodeDepth = 12 };
+	/** Using the heap allocator instead of an inline allocator to trade off add/remove performance for memory. */
+	typedef FDefaultAllocator ElementAllocator;
+
+	FORCEINLINE static const float* GetBoundingBox(const FPhotonSample& Sample)
+	{
+		FPlatformMisc::Prefetch(&Sample, PLATFORM_CACHE_LINE_SIZE);
+		return &Sample.Position.X; // 我不理解这里的做法
+	}
+
+	static void SetElementId(const FPhotonSample& Element, FOctreeElementId2 Id)
+	{
+	}
+
+	FORCEINLINE static void ApplyOffset(FPhotonSample& Element, FVector Offset)
+	{
+		Element.Position += Offset;
+	}
+
+};
+
+typedef TOctree2<FPhotonSample, FPhotonOctreeSemantics> FPhotonOctree;
+
+
+class FPrecomputedPhotonData
+{
+public:
+	ENGINE_API FPrecomputedPhotonData();
+	~FPrecomputedPhotonData();
+	friend FArchive& operator<<(FArchive& Ar, FPrecomputedPhotonData& Volume);
+	friend FArchive& operator<<(FArchive& Ar, FPrecomputedPhotonData*& Volume);
+	/** Frees any previous samples, prepares the volume to have new photons added. */
+	ENGINE_API void Initialize(const FBox& NewBounds);
+	/** Adds a photon sample */
+	ENGINE_API void AddPhotonSample(const FPhotonSample& NewSample);
+	/** Shrinks the octree and updates memory stats. */
+	ENGINE_API void FinalizeSamples();
+	/** Invalidates anything produced by the last lighting build. */
+	ENGINE_API void InvalidateLightingCache();
+	SIZE_T GetAllocatedBytes() const;
+
+	bool IsInitialized() const
+	{
+		return bInitialized;
+	}
+
+	FBox& GetBounds()
+	{
+		return Bounds;
+	}
+
+private:
+	bool bInitialized;
+	FBox Bounds;
+	FPhotonOctree PhotonOctree;
+	friend class FPrecomputedPhoton;
+};
+
+
+class FPrecomputedPhoton
+{
+public:
+	ENGINE_API FPrecomputedPhoton();
+	~FPrecomputedPhoton();
+	ENGINE_API void AddToScene(class FSceneInterface* Scene, class UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId, int32 BounceNum);
+	ENGINE_API void RemoveFromScene(FSceneInterface* Scene, int32 BounceNum);
+	ENGINE_API void SetData(const FPrecomputedPhotonData* NewData, FSceneInterface* Scene);
+
+	ENGINE_API void DebugDrawSamples(class FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color) const;
+	ENGINE_API bool IntersectBounds(const FBoxSphereBounds& InBounds) const;
+	SIZE_T GetAllocatedBytes() const;
+
+	bool IsAddedToScene() const
+	{
+		return bAddedToScene;
+	}
+
+	float GetNodeLevelExtent(int32 Level) const
+	{
+		return OctreeForRendering->GetNodeLevelExtent(Level);
+	}
+
+	ENGINE_API void ApplyWorldOffset(const FVector& InOffset);
+	const FPrecomputedPhotonData* Data;
+
+private:
+	bool bAddedToScene;
+	/** Octree used to accelerate interpolation searches. */
+	const FPhotonOctree* OctreeForRendering;
+	/** Offset from world origin. Non-zero only when world origin was rebased */
+	FVector WorldOriginOffset;
+
+};

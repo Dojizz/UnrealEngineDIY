@@ -577,6 +577,120 @@ FPrecomputedLightVolumeData* UMapBuildDataRegistry::GetLevelPrecomputedLightVolu
 	return NULL;
 }
 
+// TODOZZ: 按照volume light的接口全部实现三遍photon的版本
+FPrecomputedPhotonData& UMapBuildDataRegistry::AllocateLevelPrecomputedDirectPhotonBuildData(const FGuid& LevelId)
+{
+	check(LevelId.IsValid());
+	MarkPackageDirty();
+	return *LevelPrecomputedDirectPhotonBuildData.Add(LevelId, new FPrecomputedPhotonData());
+}
+
+void UMapBuildDataRegistry::AddLevelPrecomputedDirectPhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData)
+{
+	check(LevelId.IsValid());
+	LevelPrecomputedDirectPhotonBuildData.Add(LevelId, InData);
+}
+
+const FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedDirectPhotonBuildData(FGuid LevelId) const
+{
+	const FPrecomputedPhotonData* const* DataPtr = LevelPrecomputedDirectPhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedDirectPhotonBuildData(FGuid LevelId)
+{
+	FPrecomputedPhotonData** DataPtr = LevelPrecomputedDirectPhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+FPrecomputedPhotonData& UMapBuildDataRegistry::AllocateLevelPrecomputedFirstBouncePhotonBuildData(const FGuid& LevelId)
+{
+	check(LevelId.IsValid());
+	MarkPackageDirty();
+	return *LevelPrecomputedFirstBouncePhotonBuildData.Add(LevelId, new FPrecomputedPhotonData());
+}
+
+void UMapBuildDataRegistry::AddLevelPrecomputedFirstBouncePhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData)
+{
+	check(LevelId.IsValid());
+	LevelPrecomputedFirstBouncePhotonBuildData.Add(LevelId, InData);
+}
+
+const FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedFirstBouncePhotonBuildData(FGuid LevelId) const
+{
+	const FPrecomputedPhotonData* const* DataPtr = LevelPrecomputedFirstBouncePhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedFirstBouncePhotonBuildData(FGuid LevelId)
+{
+	FPrecomputedPhotonData** DataPtr = LevelPrecomputedFirstBouncePhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+FPrecomputedPhotonData& UMapBuildDataRegistry::AllocateLevelPrecomputedSecondBouncePhotonBuildData(const FGuid& LevelId)
+{
+	check(LevelId.IsValid());
+	MarkPackageDirty();
+	return *LevelPrecomputedSecondBouncePhotonBuildData.Add(LevelId, new FPrecomputedPhotonData());
+}
+
+void UMapBuildDataRegistry::AddLevelPrecomputedSecondBouncePhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData)
+{
+	check(LevelId.IsValid());
+	LevelPrecomputedSecondBouncePhotonBuildData.Add(LevelId, InData);
+}
+
+const FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedSecondBouncePhotonBuildData(FGuid LevelId) const
+{
+	const FPrecomputedPhotonData* const* DataPtr = LevelPrecomputedSecondBouncePhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+FPrecomputedPhotonData* UMapBuildDataRegistry::GetLevelPrecomputedSecondBouncePhotonBuildData(FGuid LevelId)
+{
+	FPrecomputedPhotonData** DataPtr = LevelPrecomputedSecondBouncePhotonBuildData.Find(LevelId);
+
+	if (DataPtr)
+	{
+		return *DataPtr;
+	}
+
+	return NULL;
+}
+
+
+
 FPrecomputedVolumetricLightmapData& UMapBuildDataRegistry::AllocateLevelPrecomputedVolumetricLightmapBuildData(const FGuid& LevelId)
 {
 	check(LevelId.IsValid());

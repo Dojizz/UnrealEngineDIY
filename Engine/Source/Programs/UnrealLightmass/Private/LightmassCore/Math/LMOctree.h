@@ -606,6 +606,12 @@ public:
 
 	void GetMemoryUsage(size_t& OutSizeBytes) const;
 
+	// TODOZZ: 对octree中的元素进行计数，参考DumpStats
+	int32 GetElementCount() const;
+
+	// TODOZZ: 对octree中的元素进行遍历，加入一整个array中
+	void GetElementArray(TArray<ElementType>* ElementArray) const;
+
 	/** Initialization constructor. */
 	TOctree(const FVector4& InOrigin, float InExtent);
 
@@ -858,6 +864,50 @@ void TOctree<ElementType,OctreeSemantics>::DumpStats(bool bDetailed) const
 				{
 					UE_LOG(LogLightmass, Log, TEXT("\tElements: %3i, Nodes: %3i"),i,NodeElementDistribution[i]);
 				}
+			}
+		}
+	}
+}
+
+// 参考DumpStats输出element count
+template<typename ElementType, typename OctreeSemantics>
+int32 TOctree<ElementType, OctreeSemantics>::GetElementCount() const
+{
+	int32 NumElements = 0;
+	for (TConstIterator<> NodeIt(*this); NodeIt.HasPendingNodes(); NodeIt.Advance())
+	{
+		const FNode& CurrentNode = NodeIt.GetCurrentNode();
+		const int32 CurrentNodeElementCount = CurrentNode.GetElementCount();
+		NumElements += CurrentNodeElementCount;
+
+		FOREACH_OCTREE_CHILD_NODE(ChildRef)
+		{
+			if (CurrentNode.HasChild(ChildRef))
+			{
+				NodeIt.PushChild(ChildRef);
+			}
+		}
+	}
+	return NumElements;
+}
+
+// TODOZZ: 输出整个octree的TArray，需要check这里的结果是否正确
+template<typename ElementType, typename OctreeSemantics>
+void TOctree<ElementType, OctreeSemantics>::GetElementArray(TArray<ElementType>* ElementArray) const
+{
+	for (TConstIterator<> NodeIt(*this); NodeIt.HasPendingNodes(); NodeIt.Advance())
+	{
+		const FNode& CurrentNode = NodeIt.GetCurrentNode();
+		ElementConstIt ElementIt = CurrentNode.GetConstElementIt();
+		for (; ElementIt; ElementIt++) {
+			ElementArray->Add(*ElementIt);
+		}
+
+		FOREACH_OCTREE_CHILD_NODE(ChildRef)
+		{
+			if (CurrentNode.HasChild(ChildRef))
+			{
+				NodeIt.PushChild(ChildRef);
 			}
 		}
 	}

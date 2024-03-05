@@ -314,6 +314,9 @@ ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	,	OwningWorld(NULL)
 	,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
 	,	PrecomputedLightVolume(new FPrecomputedLightVolume())
+	,   PrecomputedDirectPhoton(new FPrecomputedPhoton())
+	,	PrecomputedFirstBouncePhoton(new FPrecomputedPhoton())
+	,	PrecomputedSecondBouncePhoton(new FPrecomputedPhoton())
 	,	PrecomputedVolumetricLightmap(new FPrecomputedVolumetricLightmap())
 {
 #if WITH_EDITORONLY_DATA
@@ -381,6 +384,7 @@ void ULevel::PostInitProperties()
 	LevelBuildDataId = FGuid::NewGuid();
 }
 
+// TODOZZ: 还没有在这里加上photon的序列化，我不确定是否有影响
 void ULevel::Serialize( FArchive& Ar )
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ULevel::Serialize"), STAT_Level_Serialize, STATGROUP_LoadTime);
@@ -929,6 +933,15 @@ void ULevel::FinishDestroy()
 {
 	delete PrecomputedLightVolume;
 	PrecomputedLightVolume = NULL;
+
+	delete PrecomputedDirectPhoton;
+	PrecomputedDirectPhoton = NULL;
+
+	delete PrecomputedFirstBouncePhoton;
+	PrecomputedFirstBouncePhoton = NULL;
+
+	delete PrecomputedSecondBouncePhoton;
+	PrecomputedSecondBouncePhoton = NULL;
 
 	delete PrecomputedVolumetricLightmap;
 	PrecomputedVolumetricLightmap = NULL;
@@ -1966,6 +1979,7 @@ void ULevel::ClearActorsSeamlessTraveledFlag()
 	bAlreadyClearedActorsSeamlessTravelFlag = true;
 }
 
+// TODOZZ: 要在这里加上photon数据的初始化
 void ULevel::InitializeRenderingResources()
 {
 	// OwningWorld can be NULL when InitializeRenderingResources is called during undo, where a transient ULevel is created to allow undoing level move operations
@@ -1983,6 +1997,21 @@ void ULevel::InitializeRenderingResources()
 		if (!PrecomputedLightVolume->IsAddedToScene())
 		{
 			PrecomputedLightVolume->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId);
+		}
+
+		if (!PrecomputedDirectPhoton->IsAddedToScene())
+		{
+			PrecomputedDirectPhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 0);
+		}
+
+		if (!PrecomputedFirstBouncePhoton->IsAddedToScene())
+		{
+			PrecomputedFirstBouncePhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 1);
+		}
+
+		if (!PrecomputedSecondBouncePhoton->IsAddedToScene())
+		{
+			PrecomputedSecondBouncePhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 2);
 		}
 
 		if (!PrecomputedVolumetricLightmap->IsAddedToScene())
@@ -2004,6 +2033,21 @@ void ULevel::ReleaseRenderingResources()
 		if (PrecomputedLightVolume)
 		{
 			PrecomputedLightVolume->RemoveFromScene(OwningWorld->Scene);
+		}
+
+		if (PrecomputedDirectPhoton)
+		{
+			PrecomputedDirectPhoton->RemoveFromScene(OwningWorld->Scene, 0);
+		}
+
+		if (PrecomputedFirstBouncePhoton)
+		{
+			PrecomputedFirstBouncePhoton->RemoveFromScene(OwningWorld->Scene, 1);
+		}
+
+		if (PrecomputedSecondBouncePhoton)
+		{
+			PrecomputedSecondBouncePhoton->RemoveFromScene(OwningWorld->Scene, 2);
 		}
 
 		if (PrecomputedVolumetricLightmap)
@@ -2503,6 +2547,10 @@ void ULevel::ApplyWorldOffset(const FVector& InWorldOffset, bool bWorldShift)
  				});
 		}
 	}
+
+	// 同样地，移动photon，这一部分不想写
+	// TODOZZ：出问题了再写
+	
 
 	if (PrecomputedVolumetricLightmap && !InWorldOffset.IsZero())
 	{

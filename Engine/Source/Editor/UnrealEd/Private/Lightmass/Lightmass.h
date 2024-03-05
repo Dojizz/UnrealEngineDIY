@@ -665,6 +665,9 @@ protected:
 	/** Positive if the volume sample task is complete. */
 	static volatile int32										VolumeSampleTaskCompleted;
 
+	/** 同上，定义photons task*/
+	static volatile int32									PhotonsTaskCompleted;
+
 	/** List of completed visibility tasks. */
 	TListThreadSafe<FGuid>									CompletedVisibilityTasks;
 
@@ -703,6 +706,9 @@ protected:
 
 	/** Imports volume lighting samples from Lightmass and adds them to the appropriate levels. */
 	void	ImportVolumeSamples();
+
+	/** 导入photons from Lightmass and adds them to the appropriate levels.*/
+	void	ImportPhotons();
 	
 	void	ImportIrradianceTasks(bool& bGenerateSkyShadowing, TArray<struct FImportedVolumetricLightmapTaskData>& TaskDataArray);
 
