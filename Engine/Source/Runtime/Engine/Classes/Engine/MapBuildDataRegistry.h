@@ -320,20 +320,12 @@ public:
 	ENGINE_API FPrecomputedLightVolumeData* GetLevelPrecomputedLightVolumeBuildData(FGuid LevelId);
 
 	/** TODOZZ: Allocates a new FPhotonData from the registry. 仿照上面的light volume，接口保持一致*/
-	ENGINE_API FPrecomputedPhotonData& AllocateLevelPrecomputedDirectPhotonBuildData(const FGuid& LevelId);
-	ENGINE_API void AddLevelPrecomputedDirectPhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData);
-	ENGINE_API const FPrecomputedPhotonData* GetLevelPrecomputedDirectPhotonBuildData(FGuid LevelId) const;
-	ENGINE_API FPrecomputedPhotonData* GetLevelPrecomputedDirectPhotonBuildData(FGuid LevelId);
+	ENGINE_API FPrecomputedPhotonData& AllocateLevelPrecomputedPhotonBuildData(const FGuid& LevelId);
+	ENGINE_API void AddLevelPrecomputedPhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData);
+	ENGINE_API const FPrecomputedPhotonData* GetLevelPrecomputedPhotonBuildData(FGuid LevelId) const;
+	ENGINE_API FPrecomputedPhotonData* GetLevelPrecomputedPhotonBuildData(FGuid LevelId);
 
-	ENGINE_API FPrecomputedPhotonData& AllocateLevelPrecomputedFirstBouncePhotonBuildData(const FGuid& LevelId);
-	ENGINE_API void AddLevelPrecomputedFirstBouncePhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData);
-	ENGINE_API const FPrecomputedPhotonData* GetLevelPrecomputedFirstBouncePhotonBuildData(FGuid LevelId) const;
-	ENGINE_API FPrecomputedPhotonData* GetLevelPrecomputedFirstBouncePhotonBuildData(FGuid LevelId);
-
-	ENGINE_API FPrecomputedPhotonData& AllocateLevelPrecomputedSecondBouncePhotonBuildData(const FGuid& LevelId);
-	ENGINE_API void AddLevelPrecomputedSecondBouncePhotonBuildData(const FGuid& LevelId, FPrecomputedPhotonData* InData);
-	ENGINE_API const FPrecomputedPhotonData* GetLevelPrecomputedSecondBouncePhotonBuildData(FGuid LevelId) const;
-	ENGINE_API FPrecomputedPhotonData* GetLevelPrecomputedSecondBouncePhotonBuildData(FGuid LevelId);
+	
 
 	/** 
 	 * Allocates a new FPrecomputedVolumetricLightmapData from the registry.
@@ -404,10 +396,8 @@ private:
 	TMap<FGuid, FLightComponentMapBuildData> LightBuildData;
 	TMap<FGuid, FReflectionCaptureMapBuildData> ReflectionCaptureBuildData;
 	TMap<FGuid, FSkyAtmosphereMapBuildData> SkyAtmosphereBuildData;
-	// 需要三个map分别存三个photon map，我好垃圾。。。
-	TMap<FGuid, FPrecomputedPhotonData*> LevelPrecomputedDirectPhotonBuildData;
-	TMap<FGuid, FPrecomputedPhotonData*> LevelPrecomputedFirstBouncePhotonBuildData;
-	TMap<FGuid, FPrecomputedPhotonData*> LevelPrecomputedSecondBouncePhotonBuildData;
+	// 需要一个map存level->photon数据
+	TMap<FGuid, FPrecomputedPhotonData*> LevelPrecomputedPhotonBuildData;
 
 	bool bSetupResourceClusters;
 	TArray<FLightmapResourceCluster> LightmapResourceClusters;

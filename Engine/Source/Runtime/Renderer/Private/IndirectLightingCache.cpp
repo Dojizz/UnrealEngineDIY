@@ -29,6 +29,7 @@ const float LogEBoundSizeRoundUpBase = FMath::Loge(BoundSizeRoundUpBase);
 // Console variables that can be changed at runtime to configure or debug the indirect lighting cache
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 int32 GCacheDrawLightingSamples = 0;
 static FAutoConsoleVariableRef CVarCacheDrawLightingSamples(
 	TEXT("r.Cache.DrawLightingSamples"),
@@ -106,6 +107,16 @@ static FAutoConsoleVariableRef CVarCacheLimitQuerySize(
 	TEXT("0 is off, 1 is on (default)"),
 	ECVF_RenderThreadSafe
 	);
+
+static TAutoConsoleVariable<int32> CVarCustomPhotonBounceNum(
+	TEXT("r.CustomPhotonBounceNum"),
+	0,
+	TEXT("Control the visualization of photon bounce number.\n")
+	TEXT(" <0: all photons\n")
+	TEXT("  0: direct photons\n")
+	TEXT("  1: first bounce photons\n"),
+	ECVF_RenderThreadSafe
+);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Console variables that cannot be changed at runtime
@@ -606,39 +617,16 @@ void FIndirectLightingCache::FinalizeUpdateInternal_RenderThread(FScene* Scene, 
 	}
 
 	// 在这里决定是否要绘制其他photons并进行绘制
-	if (Renderer.ViewFamily.EngineShowFlags.DirectPhotons)
+	if (Renderer.ViewFamily.EngineShowFlags.Photons)
 	{
 		FViewElementPDI DebugPDI(&Renderer.Views[0], nullptr, &Renderer.Views[0].DynamicPrimitiveShaderData);
+		int32 BounceNum = CVarCustomPhotonBounceNum.GetValueOnAnyThread();
 
-		for (int32 PhotonIndex = 0; PhotonIndex < Scene->PrecomputedDirectPhotons.Num(); PhotonIndex++)
+		for (int32 PhotonIndex = 0; PhotonIndex < Scene->PrecomputedPhotons.Num(); PhotonIndex++)
 		{
-			const FPrecomputedPhoton* PrecomputedPhoton = Scene->PrecomputedDirectPhotons[PhotonIndex];
+			const FPrecomputedPhoton* PrecomputedPhoton = Scene->PrecomputedPhotons[PhotonIndex];
 
-			PrecomputedPhoton->DebugDrawSamples(&DebugPDI, GCacheDrawDirectionalShadowing != 0, FLinearColor(1.f, 0.f, 0.f, 1.f));
-		}
-	}
-
-	if (Renderer.ViewFamily.EngineShowFlags.FirstBouncePhotons)
-	{
-		FViewElementPDI DebugPDI(&Renderer.Views[0], nullptr, &Renderer.Views[0].DynamicPrimitiveShaderData);
-
-		for (int32 PhotonIndex = 0; PhotonIndex < Scene->PrecomputedFirstBouncePhotons.Num(); PhotonIndex++)
-		{
-			const FPrecomputedPhoton* PrecomputedPhoton = Scene->PrecomputedFirstBouncePhotons[PhotonIndex];
-
-			PrecomputedPhoton->DebugDrawSamples(&DebugPDI, GCacheDrawDirectionalShadowing != 0, FLinearColor(0.f, 1.f, 0.f, 1.f));
-		}
-	}
-
-	if (Renderer.ViewFamily.EngineShowFlags.SecondBouncePhotons)
-	{
-		FViewElementPDI DebugPDI(&Renderer.Views[0], nullptr, &Renderer.Views[0].DynamicPrimitiveShaderData);
-
-		for (int32 PhotonIndex = 0; PhotonIndex < Scene->PrecomputedSecondBouncePhotons.Num(); PhotonIndex++)
-		{
-			const FPrecomputedPhoton* PrecomputedPhoton = Scene->PrecomputedSecondBouncePhotons[PhotonIndex];
-
-			PrecomputedPhoton->DebugDrawSamples(&DebugPDI, GCacheDrawDirectionalShadowing != 0, FLinearColor(0.f, 0.f, 1.f, 1.f));
+			PrecomputedPhoton->DebugDrawSamples(&DebugPDI, GCacheDrawDirectionalShadowing != 0, FLinearColor(1.f, 0.f, 0.f, 1.f), BounceNum);
 		}
 	}
 }

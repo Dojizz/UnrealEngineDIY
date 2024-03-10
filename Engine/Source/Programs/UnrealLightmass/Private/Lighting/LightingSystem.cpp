@@ -774,13 +774,9 @@ void FStaticLightingSystem::ExportNonMappingTasks()
 	{
 		bShouldExportPhotonsData = false;
 		Exporter.ExportPhotons(
-			DirectPhotons,
-			FirstBouncePhotons,
-			SecondBouncePhotons);
+			PhotonsArray);
 		// 释放photons
-		DirectPhotons.Empty();
-		FirstBouncePhotons.Empty();
-		SecondBouncePhotons.Empty();
+		PhotonsArray.Empty();
 		// Tell Swarm the task is complete
 		FLightmassSwarm* Swarm = GetExporter().GetSwarm();
 		Swarm->TaskCompleted(PrecomputedPhotonsGuid);

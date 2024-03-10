@@ -587,7 +587,7 @@ void FStaticLightingSystem::EmitDirectPhotonsWorkRange(
 			// Note: SampleRay.Start is offset from the actual start position, but not enough to matter for the algorithms which make use of the photon's traveled distance.
 			const float RayLength = (SampleRay.Start - PathIntersection.IntersectionVertex.WorldPosition).Size3();
 			// Create a photon from this path vertex's information，当前path发出的这个光子能量足够，利用光线属性创建该光子
-			const FPhoton NewPhoton(Output.NumPhotonsEmitted, PathIntersection.IntersectionVertex.WorldPosition, RayLength, -WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ, PathAlpha);
+			const FPhoton NewPhoton(Output.NumPhotonsEmitted, PathIntersection.IntersectionVertex.WorldPosition, RayLength, -WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ, PathAlpha, 0);
 			checkSlow(FLinearColorUtils::AreFloatsValid(PathAlpha));
 			if (Output.NumPhotonsEmitted < WorkRange.NumDirectPhotonsToEmit
 				// Only deposit photons inside the importance bounds，在bounds中且不超出所需数量
@@ -1053,7 +1053,7 @@ void FStaticLightingSystem::EmitIndirectPhotonsWorkRange(
 					// Note: SampleRay.Start is offset from the actual start position, but not enough to matter for the algorithms which make use of the photon's traveled distance.
 					const float RayLength = (SampleRay.Start - PathIntersection.IntersectionVertex.WorldPosition).Size3();
 					// Create a photon from this path vertex's information
-					const FPhoton NewPhoton(Output.NumPhotonsEmitted, PathIntersection.IntersectionVertex.WorldPosition, RayLength, -WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ, PathAlpha);
+					const FPhoton NewPhoton(Output.NumPhotonsEmitted, PathIntersection.IntersectionVertex.WorldPosition, RayLength, -WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ, PathAlpha, NumberOfPathVertices - 1);
 
 					bool bShouldCreateIrradiancePhoton = false;
 					if (NumberOfPathVertices == 2)
@@ -1215,7 +1215,7 @@ void FStaticLightingSystem::EmitIndirectPhotonsWorkRange(
 				if (ClipLineWithBox(Input.ImportanceBounds.GetBox(), SampleRay.Start, RayEnd, ClippedStart, ClippedEnd))
 				{
 					// Create the description for an escaped photon
-					const FPhoton NewPhoton(Output.NumPhotonsEmitted, ClippedEnd, (ClippedEnd - SampleRay.Start).Size3(), -WorldPathDirection, FVector4(0, 0, 1), PathAlpha);
+					const FPhoton NewPhoton(Output.NumPhotonsEmitted, ClippedEnd, (ClippedEnd - SampleRay.Start).Size3(), -WorldPathDirection, FVector4(0, 0, 1), PathAlpha, 0);
 					Output.FirstBounceEscapedPhotons.Add(NewPhoton);
 				}
 			}
@@ -2513,18 +2513,13 @@ void FStaticLightingSystem::BeginLoadPhotons() {
 	int32 FirstBouncePhotonsNum = FirstBouncePhotonMap.GetElementCount();
 	int32 SecondBouncePhotonsNum = SecondBouncePhotonMap.GetElementCount();
 	
-	// 逐个加入array
-	DirectPhotons.Empty(DirectPhotonsNum);
-	TArray<FPhotonElement>* DirectPhotonsArray = &DirectPhotons;
-	DirectPhotonMap.GetElementArray(DirectPhotonsArray);
-
-	FirstBouncePhotons.Empty(FirstBouncePhotonsNum);
-	TArray<FPhotonElement>* FirstBouncePhotonsArray = &FirstBouncePhotons;
-	FirstBouncePhotonMap.GetElementArray(FirstBouncePhotonsArray);
-
-	SecondBouncePhotons.Empty(SecondBouncePhotonsNum);
-	TArray<FPhotonElement>* SecondBouncePhotonsArray = &SecondBouncePhotons;
-	SecondBouncePhotonMap.GetElementArray(SecondBouncePhotonsArray);
+	// 全部加入PhotonsArray
+	PhotonsArray.Empty(DirectPhotonsNum + FirstBouncePhotonsNum + SecondBouncePhotonsNum);
+	PhotonsArray.Empty(DirectPhotonsNum);
+	TArray<FPhotonElement>* PhotonsArrayPtr = &PhotonsArray;
+	DirectPhotonMap.GetElementArray(PhotonsArrayPtr);
+	FirstBouncePhotonMap.GetElementArray(PhotonsArrayPtr);
+	SecondBouncePhotonMap.GetElementArray(PhotonsArrayPtr);
 
 }
 

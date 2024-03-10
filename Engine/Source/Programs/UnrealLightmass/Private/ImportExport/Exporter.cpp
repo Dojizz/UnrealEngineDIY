@@ -76,24 +76,16 @@ namespace Lightmass
 	}
 
 	/** TODOZZ: 导出Photons数据到Unreal，需要和接受这一数据的FLightmassProcessor::ImportPhotons对应*/
-	void FLightmassSolverExporter::ExportPhotons(const TArray<FPhotonElement>& DirectPhotons,
-		const TArray<FPhotonElement>& FirstBouncePhotons,
-		const TArray<FPhotonElement>& SecondBouncePhotons) const
+	void FLightmassSolverExporter::ExportPhotons(const TArray<FPhotonElement>& Photons) const
 	{
 		const FString ChannelName = CreateChannelName(PrecomputedPhotonsGuid, LM_PHOTONS_VERSION, LM_PHOTONS_EXTENSION);
 		const int32 ErrorCode = Swarm->OpenChannel(*ChannelName, LM_PHOTONS_CHANNEL_FLAGS, true);
 		if (ErrorCode >= 0)
 		{
 			// 写入当前array的元素个数，即光子数
-			const int32 NumDirectPhotons = DirectPhotons.Num();
-			const int32 NumFirstBouncePhotons = FirstBouncePhotons.Num();
-			const int32 NumSecondBouncePhotons = SecondBouncePhotons.Num();
-			Swarm->Write((void*)&NumDirectPhotons, sizeof(NumDirectPhotons));
-			WriteArray(DirectPhotons);
-			Swarm->Write((void*)&NumFirstBouncePhotons, sizeof(NumFirstBouncePhotons));
-			WriteArray(FirstBouncePhotons);
-			Swarm->Write((void*)&NumSecondBouncePhotons, sizeof(NumSecondBouncePhotons));
-			WriteArray(SecondBouncePhotons);
+			const int32 NumPhotons = Photons.Num();
+			Swarm->Write((void*)&NumPhotons, sizeof(NumPhotons));
+			WriteArray(Photons);
 			Swarm->CloseCurrentChannel();
 		}
 		else

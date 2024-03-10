@@ -157,6 +157,7 @@ private:
 class FPhoton
 {
 private:
+	int32 BounceNum; // 0 for direct photons, 1 for first bounce photon etc
 
 	/** Position that the photon was deposited at in XYZ, and Id in W for debugging. */
 	FVector4 PositionAndId;
@@ -169,8 +170,9 @@ private:
 
 public:
 
-	FPhoton(int32 InId, const FVector4& InPosition, float InDistance, const FVector4& InIncidentDirection, const FVector4& InSurfaceNormal, const FLinearColor& InPower)
+	FPhoton(int32 InId, const FVector4& InPosition, float InDistance, const FVector4& InIncidentDirection, const FVector4& InSurfaceNormal, const FLinearColor& InPower, const int32 BounceNum = 0)
 	{
+		this->BounceNum = BounceNum;
 		PositionAndId = FVector4(InPosition, *(float*)&InId);
 		IncidentDirectionAndDistance = FVector4(InIncidentDirection, InDistance);
 		checkSlow(FLinearColorUtils::AreFloatsValid(InPower));
@@ -178,9 +180,15 @@ public:
 		SurfaceNormalAndPower = FVector4(InSurfaceNormal, *(float*)&PowerRGBE);
 	}
 
+
 	FORCEINLINE int32 GetId() const
 	{
 		return *(int32*)&PositionAndId.W;
+	}
+
+	FORCEINLINE int32 GetBounceNum() const
+	{
+		return BounceNum;
 	}
 
 	FORCEINLINE FVector4 GetPosition() const
@@ -2612,9 +2620,7 @@ private:
 	/** Map from Level Guid to array of volume lighting samples generated. */
 	TMap<FGuid,TArray<FVolumeLightingSample> > VolumeLightingSamples;
 	// 存储光子的array
-	TArray<FPhotonElement> DirectPhotons;
-	TArray<FPhotonElement> FirstBouncePhotons;
-	TArray<FPhotonElement> SecondBouncePhotons;
+	TArray<FPhotonElement> PhotonsArray;
 
 
 	/** All precomputed visibility cells in the scene.  Some of these may be processed on other agents. */

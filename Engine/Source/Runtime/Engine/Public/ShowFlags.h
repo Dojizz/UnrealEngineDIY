@@ -422,9 +422,7 @@ private:
 		SetPrecomputedVisibilityCells(false);
 		SetVisualizeVolumetricLightmap(false);
 		SetVolumeLightingSamples(false);
-		SetDirectPhotons(false);
-		SetFirstBouncePhotons(false);
-		SetSecondBouncePhotons(false);
+		SetPhotons(false);
 		// we enable it manually on the editor view ports
 		SetSnap(false);
 		SetVisualizeMeshDistanceFields(false);

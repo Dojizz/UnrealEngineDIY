@@ -314,9 +314,7 @@ ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
 	,	OwningWorld(NULL)
 	,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
 	,	PrecomputedLightVolume(new FPrecomputedLightVolume())
-	,   PrecomputedDirectPhoton(new FPrecomputedPhoton())
-	,	PrecomputedFirstBouncePhoton(new FPrecomputedPhoton())
-	,	PrecomputedSecondBouncePhoton(new FPrecomputedPhoton())
+	,   PrecomputedPhoton(new FPrecomputedPhoton())
 	,	PrecomputedVolumetricLightmap(new FPrecomputedVolumetricLightmap())
 {
 #if WITH_EDITORONLY_DATA
@@ -934,14 +932,8 @@ void ULevel::FinishDestroy()
 	delete PrecomputedLightVolume;
 	PrecomputedLightVolume = NULL;
 
-	delete PrecomputedDirectPhoton;
-	PrecomputedDirectPhoton = NULL;
-
-	delete PrecomputedFirstBouncePhoton;
-	PrecomputedFirstBouncePhoton = NULL;
-
-	delete PrecomputedSecondBouncePhoton;
-	PrecomputedSecondBouncePhoton = NULL;
+	delete PrecomputedPhoton;
+	PrecomputedPhoton = NULL;
 
 	delete PrecomputedVolumetricLightmap;
 	PrecomputedVolumetricLightmap = NULL;
@@ -1979,7 +1971,7 @@ void ULevel::ClearActorsSeamlessTraveledFlag()
 	bAlreadyClearedActorsSeamlessTravelFlag = true;
 }
 
-// TODOZZ: 要在这里加上photon数据的初始化
+// photon数据的初始化
 void ULevel::InitializeRenderingResources()
 {
 	// OwningWorld can be NULL when InitializeRenderingResources is called during undo, where a transient ULevel is created to allow undoing level move operations
@@ -1999,19 +1991,9 @@ void ULevel::InitializeRenderingResources()
 			PrecomputedLightVolume->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId);
 		}
 
-		if (!PrecomputedDirectPhoton->IsAddedToScene())
+		if (!PrecomputedPhoton->IsAddedToScene())
 		{
-			PrecomputedDirectPhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 0);
-		}
-
-		if (!PrecomputedFirstBouncePhoton->IsAddedToScene())
-		{
-			PrecomputedFirstBouncePhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 1);
-		}
-
-		if (!PrecomputedSecondBouncePhoton->IsAddedToScene())
-		{
-			PrecomputedSecondBouncePhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId, 2);
+			PrecomputedPhoton->AddToScene(OwningWorld->Scene, EffectiveMapBuildData, LevelBuildDataId);
 		}
 
 		if (!PrecomputedVolumetricLightmap->IsAddedToScene())
@@ -2035,19 +2017,9 @@ void ULevel::ReleaseRenderingResources()
 			PrecomputedLightVolume->RemoveFromScene(OwningWorld->Scene);
 		}
 
-		if (PrecomputedDirectPhoton)
+		if (PrecomputedPhoton)
 		{
-			PrecomputedDirectPhoton->RemoveFromScene(OwningWorld->Scene, 0);
-		}
-
-		if (PrecomputedFirstBouncePhoton)
-		{
-			PrecomputedFirstBouncePhoton->RemoveFromScene(OwningWorld->Scene, 1);
-		}
-
-		if (PrecomputedSecondBouncePhoton)
-		{
-			PrecomputedSecondBouncePhoton->RemoveFromScene(OwningWorld->Scene, 2);
+			PrecomputedPhoton->RemoveFromScene(OwningWorld->Scene);
 		}
 
 		if (PrecomputedVolumetricLightmap)

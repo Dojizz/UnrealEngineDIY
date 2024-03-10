@@ -55,9 +55,7 @@ namespace Lightmass
 			const TMap<FGuid,TArray<class FVolumeLightingSample> >& VolumeSamples) const;
 
 		/** 导出photons到Unreal */
-		void ExportPhotons(const TArray<struct FPhotonElement>& DirectPhotons,
-			const TArray<struct FPhotonElement>& FirstBouncePhotons,
-			const TArray<struct FPhotonElement>& SecondBouncePhotons) const;
+		void ExportPhotons(const TArray<struct FPhotonElement>& Photons) const;
 
 		/** Exports dominant shadow information to Unreal. */
 		void ExportStaticShadowDepthMap(const FGuid& LightGuid, const class FStaticShadowDepthMap& StaticShadowDepthMap) const;

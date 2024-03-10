@@ -2605,10 +2605,8 @@ public:
 	 */
 	TArray<const FPrecomputedLightVolume*> PrecomputedLightVolumes;
 
-	// 同样在这里定义三个photon map
-	TArray<const FPrecomputedPhoton*> PrecomputedDirectPhotons;
-	TArray<const FPrecomputedPhoton*> PrecomputedFirstBouncePhotons;
-	TArray<const FPrecomputedPhoton*> PrecomputedSecondBouncePhotons;
+	// 同样在这里定义photon array
+	TArray<const FPrecomputedPhoton*> PrecomputedPhotons;
 
 	/** Interpolates and caches indirect lighting for dynamic objects. */
 	FIndirectLightingCache IndirectLightingCache;
@@ -2780,13 +2778,9 @@ public:
 	virtual void AllocateAndCaptureFrameSkyEnvMap(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, FViewInfo& MainView, bool bShouldRenderSkyAtmosphere, bool bShouldRenderVolumetricCloud) override;
 	virtual void ValidateSkyLightRealTimeCapture(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColorTexture) override;
 	virtual void AddPrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) override;
-	virtual void AddPrecomputedDirectPhoton(const class FPrecomputedPhoton* Photon) override;
-	virtual void AddPrecomputedFirstBouncePhoton(const class FPrecomputedPhoton* Photon) override;
-	virtual void AddPrecomputedSecondBouncePhoton(const class FPrecomputedPhoton* Photon) override;
+	virtual void AddPrecomputedPhoton(const class FPrecomputedPhoton* Photon) override;
 	virtual void RemovePrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) override;
-	virtual void RemovePrecomputedDirectPhoton(const class FPrecomputedPhoton* Photon) override;
-	virtual void RemovePrecomputedFirstBouncePhoton(const class FPrecomputedPhoton* Photon) override;
-	virtual void RemovePrecomputedSecondBouncePhoton(const class FPrecomputedPhoton* Photon) override;
+	virtual void RemovePrecomputedPhoton(const class FPrecomputedPhoton* Photon) override;
 	virtual bool HasPrecomputedVolumetricLightmap_RenderThread() const override;
 	virtual void AddPrecomputedVolumetricLightmap(const class FPrecomputedVolumetricLightmap* Volume, bool bIsPersistentLevel) override;
 	virtual void RemovePrecomputedVolumetricLightmap(const class FPrecomputedVolumetricLightmap* Volume) override;

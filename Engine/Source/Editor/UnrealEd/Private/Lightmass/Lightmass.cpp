@@ -3663,107 +3663,33 @@ void FLightmassProcessor::ImportPhotons()
 			ULevel* CurrentLevel = FindLevel(LevelGuid);
 
 			// 读取数据
-			int32 NumDirectPhotons;
-			Swarm.ReadChannel(Channel, &NumDirectPhotons, sizeof(NumDirectPhotons));
-			TArray<Lightmass::FPhotonData> DirectPhotons;
-			ReadArray(Channel, DirectPhotons);
+			int32 NumPhotons;
+			Swarm.ReadChannel(Channel, &NumPhotons, sizeof(NumPhotons));
+			TArray<Lightmass::FPhotonData> Photons;
+			ReadArray(Channel, Photons);
 
 			// Only build precomputed light for visible streamed levels
 			if (CurrentLevel && CurrentLevel->bIsVisible)
 			{
 				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
 				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedDirectPhotonBuildData(CurrentLevel->LevelBuildDataId);
-				FBox LevelDirectPhotonsBounds(ForceInit);
+				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedPhotonBuildData(CurrentLevel->LevelBuildDataId);
+				FBox LevelPhotonsBounds(ForceInit);
 				// 得到当前photon map的bounding box
-				for (int32 SampleIndex = 0; SampleIndex < NumDirectPhotons; SampleIndex++)
+				for (int32 SampleIndex = 0; SampleIndex < NumPhotons; SampleIndex++)
 				{
-					const Lightmass::FPhotonData& CurrentSample = DirectPhotons[SampleIndex];
+					const Lightmass::FPhotonData& CurrentSample = Photons[SampleIndex];
 					FVector SampleMin = CurrentSample.PositionAndId;
 					FVector SampleMax = CurrentSample.PositionAndId;
-					LevelDirectPhotonsBounds += FBox(SampleMin, SampleMax);
+					LevelPhotonsBounds += FBox(SampleMin, SampleMax);
 				}
 				// 将每个sample加入CurrentLevelData
-				CurrentLevelData.Initialize(LevelDirectPhotonsBounds);
-				for (int32 SampleIndex = 0; SampleIndex < DirectPhotons.Num(); SampleIndex++)
+				CurrentLevelData.Initialize(LevelPhotonsBounds);
+				for (int32 SampleIndex = 0; SampleIndex < Photons.Num(); SampleIndex++)
 				{
-					const Lightmass::FPhotonData& CurrentSample = DirectPhotons[SampleIndex];
+					const Lightmass::FPhotonData& CurrentSample = Photons[SampleIndex];
 					FPhotonSample NewPhotonSample;
-					NewPhotonSample.Position = CurrentSample.PositionAndId;
-					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
-					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;
-					NewPhotonSample.Distance = CurrentSample.IncidentDirectionAndDistance.W;
-					NewPhotonSample.SurfaceNormal = CurrentSample.SurfaceNormalAndPower;
-					NewPhotonSample.Power = CurrentSample.SurfaceNormalAndPower.W;
-					// 加入current level data
-					CurrentLevelData.AddPhotonSample(NewPhotonSample);
-				}
-				CurrentLevelData.FinalizeSamples();
-			}
-
-			// 对first/second bounce photons同样读取
-			int32 NumFirstBouncePhotons;
-			Swarm.ReadChannel(Channel, &NumFirstBouncePhotons, sizeof(NumFirstBouncePhotons));
-			TArray<Lightmass::FPhotonData> FirstBouncePhotons;
-			ReadArray(Channel, FirstBouncePhotons);
-
-			if (CurrentLevel && CurrentLevel->bIsVisible)
-			{
-				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
-				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedFirstBouncePhotonBuildData(CurrentLevel->LevelBuildDataId);
-				FBox LevelFirstBouncePhotonsBounds(ForceInit);
-				// 得到当前photon map的bounding box
-				for (int32 SampleIndex = 0; SampleIndex < NumFirstBouncePhotons; SampleIndex++)
-				{
-					const Lightmass::FPhotonData& CurrentSample = FirstBouncePhotons[SampleIndex];
-					FVector SampleMin = CurrentSample.PositionAndId;
-					FVector SampleMax = CurrentSample.PositionAndId;
-					LevelFirstBouncePhotonsBounds += FBox(SampleMin, SampleMax);
-				}
-				// 将每个sample加入CurrentLevelData
-				CurrentLevelData.Initialize(LevelFirstBouncePhotonsBounds);
-				for (int32 SampleIndex = 0; SampleIndex < FirstBouncePhotons.Num(); SampleIndex++)
-				{
-					const Lightmass::FPhotonData& CurrentSample = FirstBouncePhotons[SampleIndex];
-					FPhotonSample NewPhotonSample;
-					NewPhotonSample.Position = CurrentSample.PositionAndId;
-					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
-					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;
-					NewPhotonSample.Distance = CurrentSample.IncidentDirectionAndDistance.W;
-					NewPhotonSample.SurfaceNormal = CurrentSample.SurfaceNormalAndPower;
-					NewPhotonSample.Power = CurrentSample.SurfaceNormalAndPower.W;
-					// 加入current level data
-					CurrentLevelData.AddPhotonSample(NewPhotonSample);
-				}
-				CurrentLevelData.FinalizeSamples();
-			}
-
-			int32 NumSecondBouncePhotons;
-			Swarm.ReadChannel(Channel, &NumSecondBouncePhotons, sizeof(NumSecondBouncePhotons));
-			TArray<Lightmass::FPhotonData> SecondBouncePhotons;
-			ReadArray(Channel, SecondBouncePhotons);
-
-			if (CurrentLevel && CurrentLevel->bIsVisible)
-			{
-				ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
-				UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedPhotonData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedSecondBouncePhotonBuildData(CurrentLevel->LevelBuildDataId);
-				FBox LevelSecondBouncePhotonsBounds(ForceInit);
-				// 得到当前photon map的bounding box
-				for (int32 SampleIndex = 0; SampleIndex < NumSecondBouncePhotons; SampleIndex++)
-				{
-					const Lightmass::FPhotonData& CurrentSample = SecondBouncePhotons[SampleIndex];
-					FVector SampleMin = CurrentSample.PositionAndId;
-					FVector SampleMax = CurrentSample.PositionAndId;
-					LevelSecondBouncePhotonsBounds += FBox(SampleMin, SampleMax);
-				}
-				// 将每个sample加入CurrentLevelData
-				CurrentLevelData.Initialize(LevelSecondBouncePhotonsBounds);
-				for (int32 SampleIndex = 0; SampleIndex < SecondBouncePhotons.Num(); SampleIndex++)
-				{
-					const Lightmass::FPhotonData& CurrentSample = SecondBouncePhotons[SampleIndex];
-					FPhotonSample NewPhotonSample;
+					NewPhotonSample.BounceNum = CurrentSample.BounceNum;
 					NewPhotonSample.Position = CurrentSample.PositionAndId;
 					NewPhotonSample.Id = CurrentSample.PositionAndId.W;
 					NewPhotonSample.IncidentDirection = CurrentSample.IncidentDirectionAndDistance;

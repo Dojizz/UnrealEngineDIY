@@ -219,6 +219,7 @@ private:
 class FPhotonSample
 {
 public:
+	int32 BounceNum;
 	FVector Position;
 	float Id;
 	FVector IncidentDirection;
@@ -227,6 +228,7 @@ public:
 	float Power;
 
 	FPhotonSample() :
+		BounceNum(0),
 		Position(FVector(0, 0, 0)),
 		Id(0),
 		IncidentDirection(FVector(0, 0, 1)),
@@ -308,11 +310,11 @@ class FPrecomputedPhoton
 public:
 	ENGINE_API FPrecomputedPhoton();
 	~FPrecomputedPhoton();
-	ENGINE_API void AddToScene(class FSceneInterface* Scene, class UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId, int32 BounceNum);
-	ENGINE_API void RemoveFromScene(FSceneInterface* Scene, int32 BounceNum);
+	ENGINE_API void AddToScene(class FSceneInterface* Scene, class UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId);
+	ENGINE_API void RemoveFromScene(FSceneInterface* Scene);
 	ENGINE_API void SetData(const FPrecomputedPhotonData* NewData, FSceneInterface* Scene);
 
-	ENGINE_API void DebugDrawSamples(class FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color) const;
+	ENGINE_API void DebugDrawSamples(class FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color, int32 BounceNum=-1) const;
 	ENGINE_API bool IntersectBounds(const FBoxSphereBounds& InBounds) const;
 	SIZE_T GetAllocatedBytes() const;
 

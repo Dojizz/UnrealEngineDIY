@@ -2321,71 +2321,28 @@ void FScene::RemovePrecomputedLightVolume(const FPrecomputedLightVolume* Volume)
 }
 
 // TODOZZ: 要实现一下三个map的Add&Remove
-void FScene::AddPrecomputedDirectPhoton(const FPrecomputedPhoton* Photon)
+void FScene::AddPrecomputedPhoton(const FPrecomputedPhoton* Photon)
 {
 	FScene* Scene = this;
 
 	ENQUEUE_RENDER_COMMAND(AddDirectPhotonCommand)
 		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
 	{
-		Scene->PrecomputedDirectPhotons.Add(Photon);
+		Scene->PrecomputedPhotons.Add(Photon);
 	});
 }
 
-void FScene::RemovePrecomputedDirectPhoton(const FPrecomputedPhoton* Photon)
+void FScene::RemovePrecomputedPhoton(const FPrecomputedPhoton* Photon)
 {
 	FScene* Scene = this;
 
 	ENQUEUE_RENDER_COMMAND(RemoveDirectPhotonCommand)
 		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
 	{
-		Scene->PrecomputedDirectPhotons.Remove(Photon);
+		Scene->PrecomputedPhotons.Remove(Photon);
 	});
 }
 
-void FScene::AddPrecomputedFirstBouncePhoton(const FPrecomputedPhoton* Photon)
-{
-	FScene* Scene = this;
-
-	ENQUEUE_RENDER_COMMAND(AddFirstBouncePhotonCommand)
-		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
-	{
-		Scene->PrecomputedFirstBouncePhotons.Add(Photon);
-	});
-}
-
-void FScene::RemovePrecomputedFirstBouncePhoton(const FPrecomputedPhoton* Photon)
-{
-	FScene* Scene = this;
-
-	ENQUEUE_RENDER_COMMAND(RemoveFirstBouncePhotonCommand)
-		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
-	{
-		Scene->PrecomputedFirstBouncePhotons.Remove(Photon);
-	});
-}
-
-void FScene::AddPrecomputedSecondBouncePhoton(const FPrecomputedPhoton* Photon)
-{
-	FScene* Scene = this;
-
-	ENQUEUE_RENDER_COMMAND(AddSecondBouncePhotonCommand)
-		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
-	{
-		Scene->PrecomputedSecondBouncePhotons.Add(Photon);
-	});
-}
-
-void FScene::RemovePrecomputedSecondBouncePhoton(const FPrecomputedPhoton* Photon)
-{
-	FScene* Scene = this;
-
-	ENQUEUE_RENDER_COMMAND(RemoveSecondBouncePhotonCommand)
-		([Scene, Photon](FRHICommandListImmediate& RHICmdList)
-	{
-		Scene->PrecomputedSecondBouncePhotons.Remove(Photon);
-	});
-}
 
 void FVolumetricLightmapSceneData::AddLevelVolume(const FPrecomputedVolumetricLightmap* InVolume, EShadingPath ShadingPath, bool bIsPersistentLevel)
 {

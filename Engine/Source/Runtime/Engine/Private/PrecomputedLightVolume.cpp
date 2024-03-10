@@ -14,6 +14,7 @@
 #include "Interfaces/ITargetPlatform.h"
 
 DECLARE_MEMORY_STAT(TEXT("Precomputed Light Volume"),STAT_PrecomputedLightVolumeBuildData,STATGROUP_MapBuildData);
+extern TAutoConsoleVariable<int32> CVarCustomPhotonBounceNum;
 
 template<> TVolumeLightingSample<2>::TVolumeLightingSample(const TVolumeLightingSample<2>& Other)
 {
@@ -534,6 +535,7 @@ DECLARE_MEMORY_STAT(TEXT("Precomputed Photon"), STAT_PrecomputedPhotonData, STAT
 // 在这里写photon相关的实现
 FPhotonSample::FPhotonSample(const FPhotonSample& Other)
 {
+	BounceNum = Other.BounceNum;
 	Position = Other.Position;
 	Id = Other.Id;
 	IncidentDirection = Other.IncidentDirection;
@@ -544,6 +546,7 @@ FPhotonSample::FPhotonSample(const FPhotonSample& Other)
 
 FArchive& operator<<(FArchive& Ar, FPhotonSample& Sample)
 {
+	Ar << Sample.BounceNum;
 	Ar << Sample.Position;
 	Ar << Sample.Id;
 	Ar << Sample.IncidentDirection;
@@ -707,18 +710,13 @@ FPrecomputedPhoton::~FPrecomputedPhoton()
 // TODOZZ: 这里的add/remove to scene需要补充实现Registry中的对应函数，现在还无法实现
 // 通过bounce number判断photon类型，通过guid在registry中拿对应level guid的数据，然后存到scene中
 // 还没完成，需要写scene中的import部分
-void FPrecomputedPhoton::AddToScene(FSceneInterface* Scene, UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId, int32 BounceNum)
+void FPrecomputedPhoton::AddToScene(FSceneInterface* Scene, UMapBuildDataRegistry* Registry, FGuid LevelBuildDataId)
 {
 	check(!bAddedToScene);
 	const FPrecomputedPhotonData* NewData = NULL;
 	if (Registry)
 	{
-		if (BounceNum == 0)
-			NewData = Registry->GetLevelPrecomputedDirectPhotonBuildData(LevelBuildDataId);
-		else if (BounceNum == 1)
-			NewData = Registry->GetLevelPrecomputedFirstBouncePhotonBuildData(LevelBuildDataId);
-		else
-			NewData = Registry->GetLevelPrecomputedSecondBouncePhotonBuildData(LevelBuildDataId);
+		NewData = Registry->GetLevelPrecomputedPhotonBuildData(LevelBuildDataId);
 	}
 
 	if (NewData && NewData->bInitialized && Scene)
@@ -730,18 +728,14 @@ void FPrecomputedPhoton::AddToScene(FSceneInterface* Scene, UMapBuildDataRegistr
 			{
 				Photon->SetData(NewData, Scene);
 			});
-		if (BounceNum == 0)
-			Scene->AddPrecomputedDirectPhoton(this);
-		else if (BounceNum == 1)
-			Scene->AddPrecomputedFirstBouncePhoton(this);
-		else
-			Scene->AddPrecomputedSecondBouncePhoton(this);
+		
+			Scene->AddPrecomputedPhoton(this);
 	}
 	
 }
 
 // TODOZZ: 同上
-void FPrecomputedPhoton::RemoveFromScene(FSceneInterface* Scene, int32 BounceNum)
+void FPrecomputedPhoton::RemoveFromScene(FSceneInterface* Scene)
 {
 	if (bAddedToScene)
 	{
@@ -749,12 +743,7 @@ void FPrecomputedPhoton::RemoveFromScene(FSceneInterface* Scene, int32 BounceNum
 
 		if (Scene)
 		{
-			if (BounceNum == 0)
-				Scene->RemovePrecomputedDirectPhoton(this);
-			else if (BounceNum == 1)
-				Scene->RemovePrecomputedFirstBouncePhoton(this);
-			else
-				Scene->RemovePrecomputedSecondBouncePhoton(this);
+			Scene->RemovePrecomputedPhoton(this);
 		}
 	}
 
@@ -768,13 +757,13 @@ void FPrecomputedPhoton::SetData(const FPrecomputedPhotonData* NewData, FSceneIn
 }
 
 // 控制对photon的绘制，当前直接绘制，可以指定颜色
-void FPrecomputedPhoton::DebugDrawSamples(FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color) const
+void FPrecomputedPhoton::DebugDrawSamples(FPrimitiveDrawInterface* PDI, bool bDrawDirectionalShadowing, FLinearColor color, int32 BounceNum) const
 {
-	OctreeForRendering->FindAllElements([bDrawDirectionalShadowing, PDI, this, color](const FPhotonSample& PhotonSample)
+	OctreeForRendering->FindAllElements([bDrawDirectionalShadowing, PDI, this, color, BounceNum](const FPhotonSample& PhotonSample)
 	{
-
 		FVector SamplePosition = PhotonSample.Position + WorldOriginOffset; //relocate from volume to world space
-		PDI->DrawPoint(SamplePosition, color, 4, SDPG_World);
+		if (BounceNum < 0 || PhotonSample.BounceNum == BounceNum)
+			PDI->DrawPoint(SamplePosition, color, 4, SDPG_World);
 	});
 }
 

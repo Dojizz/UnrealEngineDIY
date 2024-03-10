@@ -507,9 +507,7 @@ public:
 	class FPrecomputedLightVolume*				PrecomputedLightVolume;
 
 	// 同样地，在这里加入photon对应的数据
-	class FPrecomputedPhoton*					PrecomputedDirectPhoton;
-	class FPrecomputedPhoton*					PrecomputedFirstBouncePhoton;
-	class FPrecomputedPhoton*					PrecomputedSecondBouncePhoton;
+	class FPrecomputedPhoton*					PrecomputedPhoton;
 
 	/** The volumetric lightmap data for this level. */
 	class FPrecomputedVolumetricLightmap*			PrecomputedVolumetricLightmap;

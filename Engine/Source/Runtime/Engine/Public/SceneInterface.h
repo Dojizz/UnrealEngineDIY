@@ -182,14 +182,8 @@ public:
 	virtual void AddPrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) {}
 	virtual void RemovePrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) {}
 
-	virtual void AddPrecomputedDirectPhoton(const class FPrecomputedPhoton* Photon) {}
-	virtual void RemovePrecomputedDirectPhoton(const class FPrecomputedPhoton* Photon) {}
-
-	virtual void AddPrecomputedFirstBouncePhoton(const class FPrecomputedPhoton* Photon) {}
-	virtual void RemovePrecomputedFirstBouncePhoton(const class FPrecomputedPhoton* Photon) {}
-
-	virtual void AddPrecomputedSecondBouncePhoton(const class FPrecomputedPhoton* Photon) {}
-	virtual void RemovePrecomputedSecondBouncePhoton(const class FPrecomputedPhoton* Photon) {}
+	virtual void AddPrecomputedPhoton(const class FPrecomputedPhoton* Photon) {}
+	virtual void RemovePrecomputedPhoton(const class FPrecomputedPhoton* Photon) {}
 
 	virtual bool HasPrecomputedVolumetricLightmap_RenderThread() const { return false; }
 	virtual void AddPrecomputedVolumetricLightmap(const class FPrecomputedVolumetricLightmap* Volume, bool bIsPersistentLevel) {}

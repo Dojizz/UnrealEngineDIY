@@ -292,12 +292,8 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, PrecomputedVisibilityCells, SFG_Visualize, NSLOCTE
 SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeVolumetricLightmap, SFG_Visualize, NSLOCTEXT("UnrealEd", "VisualizeVolumetricLightmapSF", "Volumetric Lightmap"))
 /** Visualize volume lighting samples used for GI on dynamic objects */
 SHOWFLAG_FIXED_IN_SHIPPING(0, VolumeLightingSamples, SFG_Visualize, NSLOCTEXT("UnrealEd", "VolumeLightingSamplesSF", "Volume Lighting Samples"))
-/** 可视化direct photon map */
-SHOWFLAG_FIXED_IN_SHIPPING(0, DirectPhotons, SFG_Visualize, NSLOCTEXT("UnrealEd", "DirectPhotonsSF", "Direct Photons"))
-/** 可视化first bounce photon map */
-SHOWFLAG_FIXED_IN_SHIPPING(0, FirstBouncePhotons, SFG_Visualize, NSLOCTEXT("UnrealEd", "FirstBouncePhotonsSF", "First Bounce Photons"))
-/** 可视化second photon map */
-SHOWFLAG_FIXED_IN_SHIPPING(0, SecondBouncePhotons, SFG_Visualize, NSLOCTEXT("UnrealEd", "SecondBouncePhotonsSF", "Second Bounce Photons"))
+/** 可视化photon map */
+SHOWFLAG_FIXED_IN_SHIPPING(0, Photons, SFG_Visualize, NSLOCTEXT("UnrealEd", "PhotonsSF", "Photons"))
 /** Render Paper2D sprites, for now SHOWFLAG_ALWAYS_ACCESSIBLE because it's exposed in SceneCapture */
 SHOWFLAG_ALWAYS_ACCESSIBLE(Paper2DSprites, SFG_Advanced, NSLOCTEXT("UnrealEd", "Paper2DSpritesSF", "Paper 2D Sprites"))
 /** Visualization of distance field AO */

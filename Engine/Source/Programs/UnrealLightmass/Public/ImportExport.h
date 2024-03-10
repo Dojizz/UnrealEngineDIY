@@ -308,6 +308,8 @@ namespace Lightmass
 	class FPhotonData
 	{
 	public:
+		int32 BounceNum;
+
 		/** Position that the photon was deposited at in XYZ, and Id in W for debugging. */
 		FVector4 PositionAndId;
 
