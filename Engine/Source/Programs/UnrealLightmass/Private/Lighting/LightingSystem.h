@@ -153,6 +153,57 @@ private:
 	int32 SizeY;
 };
 
+/** 参考FPhoton和FPhotonElement，写可见性数据的存储结构*/
+class FVisibilitySamplePoint
+{
+public:
+	/** radius内的photon数量，暂时对其进行可视化作为visibility*/
+	int32 PhotonNum;
+	FVector4 PositionAndRadius;
+	FVector4 Normal;
+	float Visibility;
+	
+public:
+	FVisibilitySamplePoint(const FVector4& WorldPosition, const FVector4& Normal, float Radius = 10.f, int32 PhotonNum = 0)
+	{
+		this->PhotonNum = PhotonNum;
+		this->Normal = Normal;
+		Visibility = 0.f;
+		PositionAndRadius = FVector4(WorldPosition, Radius);
+	}
+
+	FORCEINLINE int32 GetPhotonNum() const
+	{
+		return PhotonNum;
+	}
+
+	FORCEINLINE FVector4 GetWorldPosition() const
+	{
+		return FVector4(PositionAndRadius, 0.f);
+	}
+
+	FORCEINLINE float GetVisibility() const
+	{
+		return Visibility;
+	}
+
+	FORCEINLINE float GetRadius() const
+	{
+		return PositionAndRadius.W;
+	}
+};
+
+struct FVisibilitySamplePointElement
+{
+	/** Stores a photon by value so we can discard the original array and avoid a level of indirection */
+	FVisibilitySamplePoint Sample;
+
+	/** Initialization constructor. */
+	FVisibilitySamplePointElement(const FVisibilitySamplePoint& InSample) :
+		Sample(InSample)
+	{}
+};
+
 /** A particle representing the distribution of a light's radiant power. */
 class FPhoton
 {
@@ -2158,8 +2209,11 @@ private:
 	/** Places volume lighting samples and calculates lighting for them. */
 	void BeginCalculateVolumeSamples();
 
-	// 将photon装入array中
+	/** 将photon装入array中*/ 
 	void BeginLoadPhotons();
+
+	/** 计算每个采样点的visibility*/
+	void BeginComputeVisibilitySample();
 
 	/** 
 	 * Interpolates lighting from the volume lighting samples to a vertex. 
@@ -2445,6 +2499,10 @@ private:
 		const FLight* Light,
 		const bool bLowQualityLightMapsOnly) const;
 
+	void CalculateVisibilitySamplePoints(
+		FStaticLightingTextureMapping* TextureMapping,
+		const FTexelToVertexMap& TexelToVertexMap);
+
 	/** 
 	 * Calculate signed distance field shadowing from a single light,  
 	 * Based on the paper "Improved Alpha-Tested Magnification for Vector Textures and Special Effects" by Valve.
@@ -2619,10 +2677,10 @@ private:
 	FVolumeLightingInterpolationOctree VolumeLightingInterpolationOctree;
 	/** Map from Level Guid to array of volume lighting samples generated. */
 	TMap<FGuid,TArray<FVolumeLightingSample> > VolumeLightingSamples;
-	// 存储光子的array
+	/** 存储光子的array*/ 
 	TArray<FPhotonElement> PhotonsArray;
-
-
+	/** 存储可见性sample的array*/
+	TArray<FVisibilitySamplePointElement> VisibilitySamplePointsArray;
 	/** All precomputed visibility cells in the scene.  Some of these may be processed on other agents. */
 	TArray<FPrecomputedVisibilityCell> AllPrecomputedVisibilityCells;
 

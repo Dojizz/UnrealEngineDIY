@@ -780,6 +780,9 @@ void FStaticLightingSystem::ProcessTextureMapping(FStaticLightingTextureMapping*
 		// Only continue if photon mapping will not be used for direct lighting
 		if (!bCalculateDirectLightingFromPhotons)
 		{
+			/** 在这里插入一个函数，利用现有的数据记录采样点*/
+			CalculateVisibilitySamplePoints(TextureMapping, TexelToVertexMap);
+
 			// Iterate over each light that is relevant to the direct lighting of the mesh
 			for (int32 LightIndex = 0; LightIndex < TextureMapping->Mesh->RelevantLights.Num(); LightIndex++)
 			{
@@ -1390,6 +1393,27 @@ void FStaticLightingSystem::CalculateDirectLightingTextureMappingFiltered(
 		{
 			delete FilteredShadowMapData;
 			FilteredShadowMapData = NULL;
+		}
+	}
+}
+
+void FStaticLightingSystem::CalculateVisibilitySamplePoints(
+	FStaticLightingTextureMapping* TextureMapping,
+	const FTexelToVertexMap& TexelToVertexMap)
+{
+	FLMRandomStream RandomStream(0);
+	for (int32 Y = 0; Y < TextureMapping->CachedSizeY; Y++)
+	{
+		for (int32 X = 0; X < TextureMapping->CachedSizeX; X++)
+		{
+			const FTexelToVertex& TexelToVertex = TexelToVertexMap(X, Y);
+			const FStaticLightingVertex Vertex = TexelToVertex.GetVertex();
+			if (Vertex.WorldPosition.X != 0.f && Vertex.WorldPosition.Y != 0.f && Vertex.WorldPosition.Z != 0.f) {
+				// 只选取0.05的样本数量，可以再调整，控制sample的数量
+				const float RandomFraction = RandomStream.GetFraction();
+				if (RandomFraction < 0.2)
+					VisibilitySamplePointsArray.Add(FVisibilitySamplePointElement(FVisibilitySamplePoint(Vertex.WorldPosition, Vertex.WorldTangentZ)));
+			}
 		}
 	}
 }

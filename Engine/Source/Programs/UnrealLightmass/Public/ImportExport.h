@@ -320,6 +320,16 @@ namespace Lightmass
 		FVector4 SurfaceNormalAndPower;
 	};
 
+	/** FVisibilitySampleData，用于从swarm读取光子信息，结构和Lightmass::FVisibilitySamplePoint保持一致*/
+	class FVisibilitySampleData
+	{
+	public:
+		int32 PhotonNum;
+		FVector4 PositionAndRadius;
+		FVector4 Normal;
+		float Visibility;
+	};
+
 	/** Data used by the editor import process and not uploaded into textures. */
 	struct FIrradianceVoxelImportProcessingData
 	{

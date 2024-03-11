@@ -718,8 +718,10 @@ void FStaticLightingSystem::MultithreadProcess()
 	CompleteTextureMappingList.ApplyAndClear( *this );
 
 	// 此时thread应该都已经结束，开始处理光子
-	// 用于将photon写入FStaticLightingSystem的三个photon array
+	// 用于将photon写入FStaticLightingSystem的photon array
 	BeginLoadPhotons();
+	// 处理已经生成的visibility sample array
+	BeginComputeVisibilitySample();
 	bShouldExportPhotonsData = true;
 	ExportNonMappingTasks();
 
@@ -769,14 +771,17 @@ void FStaticLightingSystem::ExportNonMappingTasks()
 		}
 	}
 
-	// TODOZZ: 使用Exporter导出photon数据到swarm，因为相关的过程都由主线程完成，因此此处photon的数据应该已经准备好
+	// 使用Exporter导出photon数据到swarm，因为相关的过程都由主线程完成，因此此处photon的数据应该已经准备好
 	if (bShouldExportPhotonsData)
 	{
 		bShouldExportPhotonsData = false;
+		// TODOZZ: 临时借用这里的photon swarm channel来传输可见性的sample，后续在验证有效后需要修改成一条独立的channel
 		Exporter.ExportPhotons(
-			PhotonsArray);
+			PhotonsArray, VisibilitySamplePointsArray);
 		// 释放photons
 		PhotonsArray.Empty();
+		VisibilitySamplePointsArray.Empty();
+
 		// Tell Swarm the task is complete
 		FLightmassSwarm* Swarm = GetExporter().GetSwarm();
 		Swarm->TaskCompleted(PrecomputedPhotonsGuid);

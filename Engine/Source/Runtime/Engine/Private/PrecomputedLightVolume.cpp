@@ -762,8 +762,11 @@ void FPrecomputedPhoton::DebugDrawSamples(FPrimitiveDrawInterface* PDI, bool bDr
 	OctreeForRendering->FindAllElements([bDrawDirectionalShadowing, PDI, this, color, BounceNum](const FPhotonSample& PhotonSample)
 	{
 		FVector SamplePosition = PhotonSample.Position + WorldOriginOffset; //relocate from volume to world space
-		if (BounceNum < 0 || PhotonSample.BounceNum == BounceNum)
+		// 为了可以临时渲染可见性数据，对这里进行了修改，之后需要改回来
+		if ((BounceNum < -1 && PhotonSample.BounceNum >= 0) || (BounceNum >= 0 && PhotonSample.BounceNum == BounceNum)) // < -1则渲染全部真photon，>=0则渲染指定photon
 			PDI->DrawPoint(SamplePosition, color, 4, SDPG_World);
+		else if (BounceNum == -1 && PhotonSample.BounceNum == -1) // 渲染visibility sample，使用power项作为color
+			PDI->DrawPoint(SamplePosition, FLinearColor(PhotonSample.Power, PhotonSample.Power, PhotonSample.Power), 4, SDPG_World);
 	});
 }
 

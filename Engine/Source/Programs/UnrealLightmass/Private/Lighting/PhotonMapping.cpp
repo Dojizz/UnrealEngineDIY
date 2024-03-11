@@ -2504,7 +2504,7 @@ FLinearColor FStaticLightingSystem::CalculatePhotonExitantRadiance(
 	return AccumulatedRadiance;
 }
 
-// TODOZZ:
+
 // 实现load函数，将photon map从八叉树转换到<guid, array>
 // 具体来说，处理DirectPhotonMap，FirstBouncePhotonMap，SecondBouncePhotonMap
 void FStaticLightingSystem::BeginLoadPhotons() {
@@ -2515,7 +2515,6 @@ void FStaticLightingSystem::BeginLoadPhotons() {
 	
 	// 全部加入PhotonsArray
 	PhotonsArray.Empty(DirectPhotonsNum + FirstBouncePhotonsNum + SecondBouncePhotonsNum);
-	PhotonsArray.Empty(DirectPhotonsNum);
 	TArray<FPhotonElement>* PhotonsArrayPtr = &PhotonsArray;
 	DirectPhotonMap.GetElementArray(PhotonsArrayPtr);
 	FirstBouncePhotonMap.GetElementArray(PhotonsArrayPtr);
@@ -2523,4 +2522,29 @@ void FStaticLightingSystem::BeginLoadPhotons() {
 
 }
 
+// 此时使用的方法可以之后改进，先给出一个最简单的方式，计算radius内photon的数量
+// 需要参考UE源代码对photon map的使用方式
+void FStaticLightingSystem::BeginComputeVisibilitySample() {
+	// 临时的判断逻辑是，只要sample的给定范围内存在photon，那么我就认为是可见的，visibility = 1，否则为0
+	// TODOZZ: 可以再调整，例如搜索范围的阈值
+	for (FVisibilitySamplePointElement& SamplePoint : VisibilitySamplePointsArray) {
+		if (FindAnyNearbyPhoton(DirectPhotonMap, SamplePoint.Sample.GetWorldPosition(),
+			SamplePoint.Sample.GetRadius(), false)) {
+			SamplePoint.Sample.Visibility = 1.f;
+			continue;
+		}
+		if (FindAnyNearbyPhoton(FirstBouncePhotonMap, SamplePoint.Sample.GetWorldPosition(),
+			SamplePoint.Sample.GetRadius(), false)) {
+			SamplePoint.Sample.Visibility = 1.f;
+			continue;
+		}
+		if (FindAnyNearbyPhoton(SecondBouncePhotonMap, SamplePoint.Sample.GetWorldPosition(),
+			SamplePoint.Sample.GetRadius(), false)) {
+			SamplePoint.Sample.Visibility = 1.f;
+			continue;
+		}
+	}
 }
+
+}
+

@@ -3649,7 +3649,7 @@ void FLightmassProcessor::ImportVolumeSamples()
 	}
 }
 
-/** TODOZZ: 同上，需要一个函数用于import photons*/
+/** 同上，需要一个函数用于import photons*/
 void FLightmassProcessor::ImportPhotons()
 {
 	// 这里需要参考lightmass端的数据传输再写，即FLightmassSolverExporter::ExportPhotons
@@ -3662,11 +3662,17 @@ void FLightmassProcessor::ImportPhotons()
 			FGuid LevelGuid;
 			ULevel* CurrentLevel = FindLevel(LevelGuid);
 
-			// 读取数据
+			// 读取photon数据
 			int32 NumPhotons;
 			Swarm.ReadChannel(Channel, &NumPhotons, sizeof(NumPhotons));
 			TArray<Lightmass::FPhotonData> Photons;
 			ReadArray(Channel, Photons);
+
+			// 读取可见性数据
+			int32 NumSamples;
+			Swarm.ReadChannel(Channel, &NumSamples, sizeof(NumSamples));
+			TArray<Lightmass::FVisibilitySampleData> Samples;
+			ReadArray(Channel, Samples);
 
 			// Only build precomputed light for visible streamed levels
 			if (CurrentLevel && CurrentLevel->bIsVisible)
@@ -3683,6 +3689,16 @@ void FLightmassProcessor::ImportPhotons()
 					FVector SampleMax = CurrentSample.PositionAndId;
 					LevelPhotonsBounds += FBox(SampleMin, SampleMax);
 				}
+
+				// 考虑vis sample的bbox
+				for (int32 SampleIndex = 0; SampleIndex < NumSamples; SampleIndex++)
+				{
+					const Lightmass::FVisibilitySampleData& CurrentSample = Samples[SampleIndex];
+					FVector SampleMin = CurrentSample.PositionAndRadius;
+					FVector SampleMax = CurrentSample.PositionAndRadius;
+					LevelPhotonsBounds += FBox(SampleMin, SampleMax);
+				}
+
 				// 将每个sample加入CurrentLevelData
 				CurrentLevelData.Initialize(LevelPhotonsBounds);
 				for (int32 SampleIndex = 0; SampleIndex < Photons.Num(); SampleIndex++)
@@ -3699,6 +3715,18 @@ void FLightmassProcessor::ImportPhotons()
 					// 加入current level data
 					CurrentLevelData.AddPhotonSample(NewPhotonSample);
 				}
+
+				// 将每个可见性sample加入CurrentLevelData，这只是权宜之计
+				for (int32 SampleIndex = 0; SampleIndex < Samples.Num(); SampleIndex++)
+				{
+					const Lightmass::FVisibilitySampleData& CurrentSample = Samples[SampleIndex];
+					FPhotonSample NewPhotonSample;
+					NewPhotonSample.BounceNum = -1; // 将bounce num为-1的点标记为可见性数据来控制其显示
+					NewPhotonSample.Position = CurrentSample.PositionAndRadius;
+					NewPhotonSample.Power = CurrentSample.Visibility; // 用power项来暂时存储可见性
+					CurrentLevelData.AddPhotonSample(NewPhotonSample);
+				}
+
 				CurrentLevelData.FinalizeSamples();
 			}
 
