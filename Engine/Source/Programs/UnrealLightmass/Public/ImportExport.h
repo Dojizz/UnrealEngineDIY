@@ -520,8 +520,8 @@ namespace Lightmass
 	/** Guid used by Unreal to determine when the volume lighting sample channel with the same Guid can be opened. */
 	static const FGuid PrecomputedVolumeLightingGuid = FGuid(0xce97c5c3, 0xab614fd3, 0xb2da55c0, 0xe6c33fb4);
 
-	/** TODOZZ: 我不确定UE这里所使用的Guid是如何生成的，我直接使用一个随机生成的Guid，这很可能是错误的*/
-	static const FGuid PrecomputedPhotonsGuid = FGuid(0x78493287, 0x78493287, 0x78493287, 0x78493287);
+	/** Guid for debug points*/
+	static const FGuid DebugPointsGuid = FGuid(0x78493287, 0x78493287, 0x78493287, 0x78493287);
 
 #if !PLATFORM_MAC && !PLATFORM_LINUX
 	#pragma pack(pop)

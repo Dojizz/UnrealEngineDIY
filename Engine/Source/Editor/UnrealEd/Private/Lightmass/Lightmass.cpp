@@ -380,7 +380,7 @@ void FLightmassProcessor::SwarmCallback( NSwarm::FMessage* CallbackMessage, void
 				{
 					// TODOZZ: 和Guid的定义位置相似，我不确定在这里的修改是否能work
 					FGuid PrecomputedVolumeLightingGuid = Lightmass::PrecomputedVolumeLightingGuid;
-					FGuid PrecomputedPhotonsGuid = Lightmass::PrecomputedPhotonsGuid;
+					FGuid DebugPointsGuid = Lightmass::DebugPointsGuid;
 					FGuid MeshAreaLightDataGuid = Lightmass::MeshAreaLightDataGuid;
 					FGuid VolumeDistanceFieldGuid = Lightmass::VolumeDistanceFieldGuid;
 					if (TaskStateMessage->TaskGuid == PrecomputedVolumeLightingGuid)
@@ -388,7 +388,7 @@ void FLightmassProcessor::SwarmCallback( NSwarm::FMessage* CallbackMessage, void
 						FPlatformAtomics::InterlockedIncrement( &VolumeSampleTaskCompleted );
 						FPlatformAtomics::InterlockedIncrement( &Processor->NumCompletedTasks );
 					}
-					else if (TaskStateMessage->TaskGuid == PrecomputedPhotonsGuid)
+					else if (TaskStateMessage->TaskGuid == DebugPointsGuid)
 					{
 						FPlatformAtomics::InterlockedIncrement(&PhotonsTaskCompleted);
 						FPlatformAtomics::InterlockedIncrement(&Processor->NumCompletedTasks);
@@ -3245,7 +3245,7 @@ bool FLightmassProcessor::BeginRun()
 
 		// TODOZZ: 添加photons task，我不确定这是否足够
 		{
-			NSwarm::FTaskSpecification NewTaskSpecification(Lightmass::PrecomputedPhotonsGuid, TEXT("Photons"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS);
+			NSwarm::FTaskSpecification NewTaskSpecification(Lightmass::DebugPointsGuid, TEXT("Photons"), NSwarm::JOB_TASK_FLAG_USE_DEFAULTS);
 			NewTaskSpecification.Cost = INT_MAX;
 			ErrorCode = Swarm.AddTask(NewTaskSpecification);
 			if (ErrorCode >= 0)
@@ -3464,7 +3464,7 @@ bool FLightmassProcessor::CompleteRun()
 	{
 		ImportVolumeSamples();
 
-		ImportPhotons();
+		ImportDebugPoints();
 
 		if (Exporter->VolumetricLightmapTaskGuids.Num() > 0)
 		{
@@ -3650,11 +3650,11 @@ void FLightmassProcessor::ImportVolumeSamples()
 }
 
 /** 同上，需要一个函数用于import photons*/
-void FLightmassProcessor::ImportPhotons()
+void FLightmassProcessor::ImportDebugPoints()
 {
 	// 这里需要参考lightmass端的数据传输再写，即FLightmassSolverExporter::ExportPhotons
 	if (PhotonsTaskCompleted > 0) {
-		const FString ChannelName = Lightmass::CreateChannelName(Lightmass::PrecomputedPhotonsGuid, Lightmass::LM_PHOTONS_VERSION, Lightmass::LM_PHOTONS_EXTENSION);
+		const FString ChannelName = Lightmass::CreateChannelName(Lightmass::DebugPointsGuid, Lightmass::LM_PHOTONS_VERSION, Lightmass::LM_PHOTONS_EXTENSION);
 		const int32 Channel = Swarm.OpenChannel(*ChannelName, LM_PHOTONS_CHANNEL_FLAGS);
 		if (Channel >= 0)
 		{
@@ -3716,7 +3716,7 @@ void FLightmassProcessor::ImportPhotons()
 					CurrentLevelData.AddPhotonSample(NewPhotonSample);
 				}
 
-				// 将每个可见性sample加入CurrentLevelData，这只是权宜之计
+				// 将每个可见性sample加入CurrentLevelData
 				for (int32 SampleIndex = 0; SampleIndex < Samples.Num(); SampleIndex++)
 				{
 					const Lightmass::FVisibilitySampleData& CurrentSample = Samples[SampleIndex];

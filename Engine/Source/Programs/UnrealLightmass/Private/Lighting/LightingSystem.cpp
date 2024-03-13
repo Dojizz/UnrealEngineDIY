@@ -775,8 +775,8 @@ void FStaticLightingSystem::ExportNonMappingTasks()
 	if (bShouldExportPhotonsData)
 	{
 		bShouldExportPhotonsData = false;
-		// TODOZZ: 临时借用这里的photon swarm channel来传输可见性的sample，后续在验证有效后需要修改成一条独立的channel
-		Exporter.ExportPhotons(
+		// 所有的信息通过一个此函数传递
+		Exporter.ExportDebugPoints(
 			PhotonsArray, VisibilitySamplePointsArray);
 		// 释放photons
 		PhotonsArray.Empty();
@@ -784,7 +784,7 @@ void FStaticLightingSystem::ExportNonMappingTasks()
 
 		// Tell Swarm the task is complete
 		FLightmassSwarm* Swarm = GetExporter().GetSwarm();
-		Swarm->TaskCompleted(PrecomputedPhotonsGuid);
+		Swarm->TaskCompleted(DebugPointsGuid);
 	}
 
 
@@ -1639,7 +1639,7 @@ FStaticLightingMapping*	FStaticLightingSystem::ThreadGetNextMapping(
 				Swarm->AcceptTask( TaskGuid );
 				bWaitTimedOut = false;
 			}
-			else if (TaskGuid == PrecomputedPhotonsGuid)
+			else if (TaskGuid == DebugPointsGuid)
 			{
 				bCollectPhotonTask = true;
 				Swarm->AcceptTask(TaskGuid);

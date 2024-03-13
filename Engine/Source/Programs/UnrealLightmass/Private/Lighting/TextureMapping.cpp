@@ -1410,9 +1410,9 @@ void FStaticLightingSystem::CalculateVisibilitySamplePoints(
 			const FStaticLightingVertex Vertex = TexelToVertex.GetVertex();
 			if (Vertex.WorldPosition.X != 0.f && Vertex.WorldPosition.Y != 0.f && Vertex.WorldPosition.Z != 0.f) {
 				// 只选取0.05的样本数量，可以再调整，控制sample的数量
-				const float RandomFraction = RandomStream.GetFraction();
-				if (RandomFraction < 0.2)
-					VisibilitySamplePointsArray.Add(FVisibilitySamplePointElement(FVisibilitySamplePoint(Vertex.WorldPosition, Vertex.WorldTangentZ)));
+				/*const float RandomFraction = RandomStream.GetFraction();
+				if (RandomFraction < 0.99)*/
+				VisibilitySamplePointsArray.Add(FVisibilitySamplePointElement(FVisibilitySamplePoint(Vertex.WorldPosition, Vertex.WorldTangentZ)));
 			}
 		}
 	}

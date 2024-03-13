@@ -77,9 +77,9 @@ namespace Lightmass
 
 	/** 导出Photons数据到Unreal，需要和接受这一数据的FLightmassProcessor::ImportPhotons对应*/
 	/** TODOZZ: 借用了这里的channel来传visibility的数据，需要修改成独立的channel*/
-	void FLightmassSolverExporter::ExportPhotons(const TArray<FPhotonElement>& Photons, const TArray<FVisibilitySamplePointElement>& Samples) const
+	void FLightmassSolverExporter::ExportDebugPoints(const TArray<FPhotonElement>& Photons, const TArray<FVisibilitySamplePointElement>& Samples) const
 	{
-		const FString ChannelName = CreateChannelName(PrecomputedPhotonsGuid, LM_PHOTONS_VERSION, LM_PHOTONS_EXTENSION);
+		const FString ChannelName = CreateChannelName(DebugPointsGuid, LM_PHOTONS_VERSION, LM_PHOTONS_EXTENSION);
 		const int32 ErrorCode = Swarm->OpenChannel(*ChannelName, LM_PHOTONS_CHANNEL_FLAGS, true);
 		if (ErrorCode >= 0)
 		{
@@ -87,6 +87,7 @@ namespace Lightmass
 			const int32 NumPhotons = Photons.Num();
 			Swarm->Write((void*)&NumPhotons, sizeof(NumPhotons));
 			WriteArray(Photons);
+			// 写入可见性样本
 			const int32 NumSample = Samples.Num();
 			Swarm->Write((void*)&NumSample, sizeof(NumSample));
 			WriteArray(Samples);

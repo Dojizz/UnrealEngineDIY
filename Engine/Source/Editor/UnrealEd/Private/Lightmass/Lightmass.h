@@ -707,8 +707,8 @@ protected:
 	/** Imports volume lighting samples from Lightmass and adds them to the appropriate levels. */
 	void	ImportVolumeSamples();
 
-	/** 导入photons from Lightmass and adds them to the appropriate levels.*/
-	void	ImportPhotons();
+	/** 导入debug points from Lightmass and adds them to the appropriate levels.*/
+	void	ImportDebugPoints();
 	
 	void	ImportIrradianceTasks(bool& bGenerateSkyShadowing, TArray<struct FImportedVolumetricLightmapTaskData>& TaskDataArray);
 
