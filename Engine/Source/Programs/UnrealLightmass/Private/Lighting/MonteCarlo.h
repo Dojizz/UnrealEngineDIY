@@ -68,6 +68,10 @@ namespace Lightmass
 	/** Calculates the step 1D cumulative distribution function for the given unnormalized probability distribution function. */
 	void CalculateStep1dCDF(const TArray<float>& PDF, TArray<float>& CDF, float& UnnormalizedIntegral);
 
+	void SimpleSample1dCDF(const TArray<float>& CDFArray, FLMRandomStream& RandomStream, int32& Sample);
+
+	void SampleBarycentricTriangle(FLMRandomStream& RandomStream, float& a, float& b, float& c);
+
 	/** Generates a Sample from the given step 1D probability distribution function. */
 	void Sample1dCDF(const TArray<float>& PDFArray, const TArray<float>& CDFArray, float UnnormalizedIntegral, FLMRandomStream& RandomStream, float& PDF, float& Sample);
 

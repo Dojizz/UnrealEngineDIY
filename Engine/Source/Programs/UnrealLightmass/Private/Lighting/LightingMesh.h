@@ -544,6 +544,9 @@ public:
 	/** Allows the mesh to create mesh area lights from its emissive contribution */
 	void CreateMeshAreaLights(const class FStaticLightingSystem& LightingSystem, const FScene& Scene, TIndirectArray<FMeshAreaLight>& MeshAreaLights) const;
 
+	/** 用于计算当前mesh的面积+生成表面采样CDF*/
+	void CalculateMeshSurfaceCDF(TArray<float>& MeshSurfaceCDF, float& SurfaceArea) const;
+
 private:
 
 	/** Splits a mesh into layers with non-overlapping UVs, maintaining adjacency in world space and UVs. */

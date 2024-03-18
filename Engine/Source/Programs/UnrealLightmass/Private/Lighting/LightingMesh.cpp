@@ -496,6 +496,37 @@ void FStaticLightingMesh::CreateMeshAreaLights(
 	}
 }
 
+/** 计算当前mesh的总面积和CDF，参考EmitDirectPhotons的采样方式*/
+void FStaticLightingMesh::CalculateMeshSurfaceCDF( TArray<float>& MeshSurfaceCDFs, float& SurfaceArea) const
+{
+	TArray<FStaticLightingVertex> MeshVertices;
+	MeshVertices.Empty(NumTriangles * 3);
+	MeshVertices.AddZeroed(NumTriangles * 3);
+
+	TArray<int32> ElementIndices;
+	ElementIndices.Empty(NumTriangles);
+	ElementIndices.AddZeroed(NumTriangles);
+
+	TArray<float> MeshSurfacePDFs;
+	MeshSurfacePDFs.Empty(NumTriangles);
+	for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; TriangleIndex++)
+	{
+		// Query the mesh for the triangle's vertices.
+		GetTriangle(TriangleIndex, MeshVertices[TriangleIndex * 3 + 0], MeshVertices[TriangleIndex * 3 + 1], MeshVertices[TriangleIndex * 3 + 2], ElementIndices[TriangleIndex]);
+		const FStaticLightingVertex& v0 = MeshVertices[TriangleIndex * 3 + 0];
+		const FStaticLightingVertex& v1 = MeshVertices[TriangleIndex * 3 + 1];
+		const FStaticLightingVertex& v2 = MeshVertices[TriangleIndex * 3 + 2];
+
+		// 用WorldPosition计算面积
+		FVector Pos0 = v0.WorldPosition;
+		FVector Pos1 = v1.WorldPosition;
+		FVector Pos2 = v2.WorldPosition;
+
+		MeshSurfacePDFs.Add(FVector::CrossProduct((Pos1 - Pos0), (Pos2 - Pos0)).Size() / 2.0f);
+	}
+	CalculateStep1dCDF(MeshSurfacePDFs, MeshSurfaceCDFs, SurfaceArea);
+}
+
 /** Splits a mesh into layers with non-overlapping UVs, maintaining adjacency in world space and UVs. */
 void FStaticLightingMesh::CalculateUniqueLayers(
 	const TArray<FStaticLightingVertex>& MeshVertices, 

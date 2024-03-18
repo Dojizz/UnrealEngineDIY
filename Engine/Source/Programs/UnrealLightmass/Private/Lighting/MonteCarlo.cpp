@@ -279,6 +279,53 @@ void CalculateStep1dCDF(const TArray<float>& PDF, TArray<float>& CDF, float& Unn
 	check(CDF.Num() == PDF.Num());
 }
 
+/** simple版本的采样函数，不需要pdf，不需要返回概率，单纯的采样，返回一个整数*/
+void SimpleSample1dCDF(const TArray<float>& CDFArray, FLMRandomStream& RandomStream, int32& Sample)
+{
+	checkSlow(CDFArray.Num() > 0);
+	if (CDFArray.Num() > 0)
+	{
+		// Get a uniformly distributed pseudo-random number
+		const float RandomFraction = RandomStream.GetFraction();
+		int32 GreaterElementIndex = -1;
+		// Find the index of where the step function becomes greater or equal to the generated number
+		//@todo - CDFArray is monotonically increasing so we can do better than a linear time search
+		for (int32 i = 1; i < CDFArray.Num(); i++)
+		{
+			if (CDFArray[i] >= RandomFraction)
+			{
+				GreaterElementIndex = i;
+				break;
+			}
+		}
+		if (GreaterElementIndex >= 0)
+		{
+			check(GreaterElementIndex >= 1 && GreaterElementIndex < CDFArray.Num());
+			Sample = GreaterElementIndex - 1;
+		}
+		else
+		{
+			Sample = CDFArray.Num() - 1;
+		}
+	}
+	else
+		Sample = 0;
+
+}
+
+/** 在三角形上进行均匀采样，给出随机点的中心坐标*/
+void SampleBarycentricTriangle(FLMRandomStream& RandomStream, float& a, float& b, float& c)
+{
+	a = RandomStream.GetFraction();
+	b = RandomStream.GetFraction();
+	if (a + b >= 1.f)
+	{
+		a = 1.f - a;
+		b = 1.f - b;
+	}
+	c = 1.f - a - b;
+}
+
 /** Generates a Sample from the given step 1D probability distribution function. */
 void Sample1dCDF(const TArray<float>& PDFArray, const TArray<float>& CDFArray, float UnnormalizedIntegral, FLMRandomStream& RandomStream, float& PDF, float& Sample)
 {

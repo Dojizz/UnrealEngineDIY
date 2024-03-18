@@ -780,8 +780,8 @@ void FStaticLightingSystem::ProcessTextureMapping(FStaticLightingTextureMapping*
 		// Only continue if photon mapping will not be used for direct lighting
 		if (!bCalculateDirectLightingFromPhotons)
 		{
-			/** 在这里插入一个函数，利用现有的数据记录采样点*/
-			CalculateVisibilitySamplePoints(TextureMapping, TexelToVertexMap);
+			/** 在这里插入一个函数，利用现有的数据记录采样点，启用均匀采样则不需要*/
+			// CalculateVisibilitySamplePoints(TextureMapping, TexelToVertexMap);
 
 			// Iterate over each light that is relevant to the direct lighting of the mesh
 			for (int32 LightIndex = 0; LightIndex < TextureMapping->Mesh->RelevantLights.Num(); LightIndex++)
@@ -1397,6 +1397,7 @@ void FStaticLightingSystem::CalculateDirectLightingTextureMappingFiltered(
 	}
 }
 
+/** 利用texture上的texel映射回mesh上进行采样，均匀采样的替代方法*/
 void FStaticLightingSystem::CalculateVisibilitySamplePoints(
 	FStaticLightingTextureMapping* TextureMapping,
 	const FTexelToVertexMap& TexelToVertexMap)

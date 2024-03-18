@@ -2522,7 +2522,7 @@ void FStaticLightingSystem::BeginLoadPhotons() {
 
 }
 
-// 此时使用的方法可以之后改进，先给出一个最简单的方式，计算radius内photon的数量
+// TODOZZ: 此时使用的方法可以之后改进，先给出一个最简单的方式，计算radius内photon的数量
 // 需要参考UE源代码对photon map的使用方式
 void FStaticLightingSystem::BeginComputeVisibilitySample() {
 	// 临时的判断逻辑是，只要sample的给定范围内存在photon，那么我就认为是可见的，visibility = 1，否则为0
