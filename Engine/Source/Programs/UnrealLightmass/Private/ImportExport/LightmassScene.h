@@ -507,12 +507,11 @@ public:
 	}
 
 	/** Returns the number of direct photons to gather required by this light. */
-	virtual int32 GetNumDirectPhotons(float DirectPhotonDensity) const
-	{ checkf(0, TEXT("GetNumDirectPhotons is not supported for skylights")); return 0; }
+	virtual int32 GetNumDirectPhotons(float DirectPhotonDensity) const;
+	
 
 	/** Generates a direction sample from the light's domain */
-	virtual void SampleDirection(FLMRandomStream& RandomStream, class FLightRay& SampleRay, FVector4& LightSourceNormal, FVector2D& LightSurfacePosition, float& RayPDF, FLinearColor& Power) const
-	{ checkf(0, TEXT("SampleDirection is not supported for skylights")); }
+	virtual void SampleDirection(FLMRandomStream& RandomStream, class FLightRay& SampleRay, FVector4& LightSourceNormal, FVector2D& LightSurfacePosition, float& RayPDF, FLinearColor& Power) const;
 
 	/** Generates a direction sample from the light based on the given rays */
 	virtual void SampleDirection(
@@ -525,7 +524,9 @@ public:
 
 	/** Returns the light's radiant power. */
 	virtual float Power() const
-	{ checkf(0, TEXT("Power is not supported for skylights")); return 0; }
+	{ /*checkf(0, TEXT("Power is not supported for skylights")); return 0;*/ 
+		return 10000.f; // TODOZZ: 不知道多少比较合适
+	}
 
 	/** Returns true if all parts of the light are behind the surface being tested. */
 	virtual bool BehindSurface(const FVector4& TrianglePoint, const FVector4& TriangleNormal) const { return false; }
@@ -541,8 +542,8 @@ public:
 protected:
 
 	/** Generates a sample on the light's surface. */
-	virtual void SampleLightSurface(FLMRandomStream& RandomStream, FLightSurfaceSample& Sample) const
-	{ checkf(0, TEXT("SampleLightSurface is not supported for skylights")); }
+	virtual void SampleLightSurface(FLMRandomStream& RandomStream, FLightSurfaceSample& Sample) const;
+	
 
 	float GetMipIndexForSolidAngle(float SolidAngle) const;
 	FLinearColor SampleRadianceCubemap(float MipIndex, int32 CubeFaceIndex, FVector2D FaceUV) const;
@@ -552,6 +553,7 @@ protected:
 
 	int32 CubemapSize;
 	int32 NumMips;
+	float SkyLightRadius = 2000.f;
 	TArray<TArray<FLinearColor>> PrefilteredRadiance;
 	TArray<TArray<float>> PrefilteredVariance;
 };

@@ -351,7 +351,7 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 	}
 
 	// TODOZZ: 在这里利用Meshes的信息对其进行采样，这里mesh面片数上来后可能会有效率问题
-	int32 VisibilitySamplePointsNum = 10000;
+	int32 VisibilitySamplePointsNum = 20000;
 	TArray<float> StaticMeshPDF;
 	TArray<float> StaticMeshCDF;
 	TArray<TArray<float>> StaticMeshSurfaceAreaCDFs;

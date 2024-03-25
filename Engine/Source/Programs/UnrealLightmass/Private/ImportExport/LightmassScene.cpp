@@ -1835,7 +1835,7 @@ void FSkyLight::Import( FLightmassImporter& Importer )
 	check(FMath::IsPowerOfTwo(CubemapSize));
 	check(NumMips > 0);
 	check(RadianceEnvironmentMapDataSize == CubemapSize * CubemapSize * 6);
-
+	// 导入可能存在的cubemap，默认为0
 	if (bUseFilteredCubemap && CubemapSize > 0)
 	{
 		const double StartTime = FPlatformTime::Seconds();
@@ -1900,6 +1900,50 @@ void FSkyLight::Import( FLightmassImporter& Importer )
 		const double EndTime = FPlatformTime::Seconds();
 		UE_LOG(LogLightmass, Log, TEXT("Skylight import processing %.3fs with CubemapSize %u"), (float)(EndTime - StartTime), CubemapSize);
 	}
+}
+
+int32 FSkyLight::GetNumDirectPhotons(float DirectPhotonDensity) const
+{
+	/*checkf(0, TEXT("GetNumDirectPhotons is not supported for skylights")); 
+	return 0;*/
+	// TODOZZ: 我不确定这里要用多少photon会比较好，暂时定为1000的radius
+	const float SphereSurfaceAreaMillions = 4.0f * (float)PI * FMath::Square(SkyLightRadius) / 1000000.0f;
+	const int32 NumDirectPhotons = FMath::TruncToInt(SphereSurfaceAreaMillions * DirectPhotonDensity);
+	return NumDirectPhotons == appTruncErrorCode ? INT_MAX : NumDirectPhotons;
+}
+
+void FSkyLight::SampleDirection(FLMRandomStream& RandomStream, class FLightRay& SampleRay, FVector4& LightSourceNormal, 
+	FVector2D& LightSurfacePosition, float& RayPDF, FLinearColor& Power) const
+{
+	/*checkf(0, TEXT("SampleDirection is not supported for skylights")); */
+	// 核心是实现这个函数，在球面上均匀地采样光线
+	FVector4 RandomDirection = GetUnitVector(RandomStream);
+	FLightSurfaceSample SurfaceSample;
+	SampleLightSurface(RandomStream, SurfaceSample);
+	RandomDirection = SurfaceSample.Normal; // 测试直接向球心发射的效果，或者随机地发射
+	const float SurfacePositionDotDirection = Dot3((SurfaceSample.Position - Position), RandomDirection);
+	if (SurfacePositionDotDirection > 0.0f)
+		RandomDirection = -RandomDirection;
+	SampleRay = FLightRay(
+		SurfaceSample.Position,
+		SurfaceSample.Position + RandomDirection * 2000.f,
+		NULL,
+		this
+	);
+	LightSourceNormal = SurfaceSample.Normal.GetSafeNormal();
+	RayPDF = 1.0f / (4.0f * (float)PI);
+	Power = IndirectColor * Brightness; // TODOZZ: 需要确定多少合适
+}
+
+void FSkyLight::SampleLightSurface(FLMRandomStream& RandomStream, FLightSurfaceSample& Sample) const
+{
+	/*checkf(0, TEXT("SampleLightSurface is not supported for skylights"));*/
+	// 在一个大的球面上采样surface
+	Sample.DiskPosition = FVector2D(0, 0);
+	const FVector4 UnitSpherePosition = GetUnitVector(RandomStream);
+	Sample.Position = UnitSpherePosition * SkyLightRadius + Position;
+	Sample.Normal = -UnitSpherePosition; // 法向朝内
+	Sample.PDF = 1.0f / (4.0f * (float)PI * SkyLightRadius * SkyLightRadius);
 }
 
 void FSkyLight::ComputePrefilteredVariance()

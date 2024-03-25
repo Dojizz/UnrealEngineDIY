@@ -44,6 +44,12 @@ void FStaticLightingSystem::InitializePhotonSettings()
 		{
 			Stats.NumFirstPassPhotonsRequested += Lights[LightIndex]->GetNumDirectPhotons(PhotonMappingSettings.DirectPhotonDensity);
 		}
+		// 加上skylight的photon数
+		for (int32 SkyLightIndex = 0; SkyLightIndex < SkyLights.Num(); SkyLightIndex++)
+		{
+			Stats.NumFirstPassPhotonsRequested += SkyLights[SkyLightIndex]->GetNumDirectPhotons(PhotonMappingSettings.DirectPhotonDensity);
+		}
+
 		// 如果光源所要求发射的direct photon数超过了规定的最大数量，那么进行截断并在log提示
 		NumDirectPhotonsToEmit = FMath::Min<uint64>(Stats.NumFirstPassPhotonsRequested, (uint64)MaxNumDirectPhotonsToEmit);
 		if (NumDirectPhotonsToEmit == MaxNumDirectPhotonsToEmit)
@@ -215,22 +221,32 @@ void FStaticLightingSystem::EmitDirectPhotons(
 	GSwarm->SendMessage( NSwarm::FTimingMessage( NSwarm::PROGSTATE_Preparing0, 0 ) );
 	FSceneLightPowerDistribution LightDistribution;
 	// Create a 1d Step Probability Density Function based on the number of direct photons each light wants to gather.
-	LightDistribution.LightPDFs.Empty(Lights.Num()); // 用光源的数量对light distribution进行初始化
+	LightDistribution.LightPDFs.Empty(Lights.Num() + SkyLights.Num()); // 用光源的数量对light distribution进行初始化
 	for (int32 LightIndex = 0; LightIndex < Lights.Num(); LightIndex++)
 	{
-		const FLight* CurrentLight = Lights[LightIndex]; // 逐个light进行处理
+		const FLight* CurrentLight = Lights[LightIndex]; // 逐个light进行处理，此处的lights不包括skylight
 		const int32 LightNumDirectPhotons = CurrentLight->GetNumDirectPhotons(PhotonMappingSettings.DirectPhotonDensity); // 根据设置的density获取每个light的光子数
 		LightDistribution.LightPDFs.Add(LightNumDirectPhotons); // 光子数用于计算pdf
 	}
 
-	if (Lights.Num() > 0)
+	// 单独处理skylight的采样，同样加入PDF
+	for (int32 SkyLightIndex = 0; SkyLightIndex < SkyLights.Num(); SkyLightIndex++)
+	{
+		const FSkyLight* CurrentSkyLight = SkyLights[SkyLightIndex];
+		const int32 SkyLightNumDirectPhotons = CurrentSkyLight->GetNumDirectPhotons(PhotonMappingSettings.DirectPhotonDensity);
+		// 同样加入pdf在后续统一处理
+		LightDistribution.LightPDFs.Add(SkyLightNumDirectPhotons);
+	}
+	
+
+	if (Lights.Num() > 0 || SkyLights.Num() > 0)
 	{
 		// Compute the Cumulative Distribution Function for our step function of light powers，用pdf计算一维的cdf
 		CalculateStep1dCDF(LightDistribution.LightPDFs, LightDistribution.LightCDFs, LightDistribution.UnnormalizedIntegral);
 	}
-
-	IndirectPathRays.Empty(Lights.Num());
-	IndirectPathRays.AddZeroed(Lights.Num()); // 每个light一个indirect path ray的array
+	// 处理indirect photons时直接重新传输
+	IndirectPathRays.Empty(Lights.Num() + SkyLights.Num());
+	IndirectPathRays.AddZeroed(Lights.Num() + SkyLights.Num()); // 每个light一个indirect path ray的array
 	// Add irradiance photon array entries for all the work ranges that will be processed
 	const int32 IrradianceArrayStart = IrradiancePhotons.AddZeroed(NumPhotonWorkRanges); // workrange=256，创建一个包含256个photon array的array，记录其开始的地址
 
@@ -473,8 +489,8 @@ void FStaticLightingSystem::EmitDirectPhotonsWorkRange(
 	FDirectPhotonEmittingWorkRange WorkRange, 
 	FDirectPhotonEmittingOutput& Output)
 {
-	// No lights in the scene, so no photons to emit
-	if (Lights.Num() == 0
+	// No lights in the scene, so no photons to emit，考虑skylight
+	if ((Lights.Num() == 0 && SkyLights.Num() == 0)
 		// No light power in the scene, so no photons to shoot
 		|| Input.LightDistribution.UnnormalizedIntegral < DELTA)
 	{
@@ -483,8 +499,8 @@ void FStaticLightingSystem::EmitDirectPhotonsWorkRange(
 		return;
 	}
 
-	Output.IndirectPathRays.Empty(Lights.Num());
-	Output.IndirectPathRays.AddZeroed(Lights.Num());
+	Output.IndirectPathRays.Empty(Lights.Num() + SkyLights.Num());
+	Output.IndirectPathRays.AddZeroed(Lights.Num() + SkyLights.Num());
 	for (int32 LightIndex = 0; LightIndex < Output.IndirectPathRays.Num(); LightIndex++)
 	{
 		Output.IndirectPathRays[LightIndex].Empty(WorkRange.TargetNumIndirectPhotonPaths);
@@ -532,8 +548,12 @@ void FStaticLightingSystem::EmitDirectPhotonsWorkRange(
 		// Pick a light with probability proportional to the light's fraction of the direct photons being gathered for the whole scene
 		Sample1dCDF(Input.LightDistribution.LightPDFs, Input.LightDistribution.LightCDFs, Input.LightDistribution.UnnormalizedIntegral, RandomStream, LightPDF, LightIndex);
 		const int32 QuantizedLightIndex = FMath::TruncToInt(LightIndex * Input.LightDistribution.LightPDFs.Num());
-		check(QuantizedLightIndex >= 0 && QuantizedLightIndex < Lights.Num());
-		const FLight* Light = Lights[QuantizedLightIndex];
+		check(QuantizedLightIndex >= 0 && QuantizedLightIndex < (Lights.Num() + SkyLights.Num()));
+		const FLight* Light;
+		if (QuantizedLightIndex < Lights.Num())
+			Light = Lights[QuantizedLightIndex];
+		else // sample到skylight
+			Light = SkyLights[QuantizedLightIndex - Lights.Num()];
 		// 采样光线，从光源出发
 		FLightRay SampleRay;
 		FVector4 LightSourceNormal;
@@ -706,14 +726,20 @@ void FStaticLightingSystem::EmitIndirectPhotons(
 	FSceneLightPowerDistribution LightDistribution;
 	// Create a 1d Step Probability Density Function based on light powers,
 	// So that lights are chosen with a probability proportional to their fraction of the total light power in the scene.
-	LightDistribution.LightPDFs.Empty(Lights.Num());
+	LightDistribution.LightPDFs.Empty(Lights.Num() + SkyLights.Num());
 	for (int32 LightIndex = 0; LightIndex < Lights.Num(); LightIndex++)
 	{
 		const FLight* CurrentLight = Lights[LightIndex];
 		LightDistribution.LightPDFs.Add(CurrentLight->Power());
 	}
 
-	if (Lights.Num() > 0) 
+	for (int32 SkyLightIndex = 0; SkyLightIndex < SkyLights.Num(); SkyLightIndex++)
+	{
+		const FLight* CurrentSkyLight = SkyLights[SkyLightIndex];
+		LightDistribution.LightPDFs.Add(CurrentSkyLight->Power());
+	}
+
+	if (Lights.Num() > 0 || SkyLights.Num() > 0)
 	{
 		// Compute the Cumulative Distribution Function for our step function of light powers
 		CalculateStep1dCDF(LightDistribution.LightPDFs, LightDistribution.LightCDFs, LightDistribution.UnnormalizedIntegral);
@@ -971,11 +997,14 @@ void FStaticLightingSystem::EmitIndirectPhotonsWorkRange(
 			// Pick a light with probability proportional to the light's fraction of the scene's light power，光源抽样
 			Sample1dCDF(Input.LightDistribution.LightPDFs, Input.LightDistribution.LightCDFs, Input.LightDistribution.UnnormalizedIntegral, RandomStream, LightPDF, LightIndex);
 			const int32 QuantizedLightIndex = FMath::TruncToInt(LightIndex * Input.LightDistribution.LightPDFs.Num());
-			check(QuantizedLightIndex >= 0 && QuantizedLightIndex < Lights.Num());
-			Light = Lights[QuantizedLightIndex];
+			check(QuantizedLightIndex >= 0 && QuantizedLightIndex < Lights.Num() + SkyLights.Num());
+			if (QuantizedLightIndex < Lights.Num())
+				Light = Lights[QuantizedLightIndex];
+			else
+				Light = SkyLights[QuantizedLightIndex - Lights.Num()];
 
 			float RayDirectionPDF; // 检查该光源是否有对应的indirect path rays，目前似乎只有方向光
-			if (Input.IndirectPathRays[QuantizedLightIndex].Num() > 0)
+			if (Input.IndirectPathRays[QuantizedLightIndex].Num() > 0 && QuantizedLightIndex < Lights.Num())
 			{
 				// Use the indirect path rays to sample the light
 				Light->SampleDirection(
@@ -985,7 +1014,7 @@ void FStaticLightingSystem::EmitIndirectPhotonsWorkRange(
 					RayDirectionPDF, 
 					PathAlpha);
 			}
-			else
+			else // 针对skylight，直接uniform采样
 			{ // 没有，则uniform采样
 				FVector4 LightSourceNormal;
 				FVector2D LightSurfacePosition;
