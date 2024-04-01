@@ -51,6 +51,10 @@ struct FLightmassWorldInfoSettings
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** 控制是否进行vis数据生成 */
+	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
+	uint8 bGenerateVisibilityData : 1;
+
 	/** 
 	 * Warning: Setting this to less than 1 will greatly increase build times!
 	 * Scale of the level relative to real world scale (1 Unreal Unit = 1 cm). 
@@ -196,7 +200,8 @@ struct FLightmassWorldInfoSettings
 	float MaxOcclusionDistance;
 
 	FLightmassWorldInfoSettings()
-		: StaticLightingLevelScale(1)
+		: bGenerateVisibilityData(false)
+		, StaticLightingLevelScale(1)
 		, NumIndirectLightingBounces(3)
 		, NumSkyLightingBounces(1)
 		, IndirectLightingQuality(1)

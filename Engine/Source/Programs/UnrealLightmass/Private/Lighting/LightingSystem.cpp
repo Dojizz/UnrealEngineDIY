@@ -662,6 +662,12 @@ void FStaticLightingSystem::MultithreadProcess()
 	GStatistics.PhotonsStart = FPlatformTime::Seconds();
 	CacheSamples();
 
+	if (GeneralSettings.bGenerateVisibilityData)
+	{
+		// 在这里进行对vis的计算
+
+	}
+
 	if (PhotonMappingSettings.bUsePhotonMapping)
 	{		
 		// Build photon maps

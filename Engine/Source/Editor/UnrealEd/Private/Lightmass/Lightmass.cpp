@@ -2204,6 +2204,7 @@ void FLightmassExporter::WriteSceneSettings( Lightmass::FSceneFileHeader& Scene 
 		Scene.GeneralSettings.NumSkyLightingBounces = LevelSettings.NumSkyLightingBounces;
 		Scene.GeneralSettings.IndirectLightingSmoothness = LevelSettings.IndirectLightingSmoothness;
 		Scene.GeneralSettings.IndirectLightingQuality = LevelSettings.IndirectLightingQuality;
+		Scene.GeneralSettings.bGenerateVisibilityData = LevelSettings.bGenerateVisibilityData;
 
 		if (QualityLevel == Quality_Preview)
 		{

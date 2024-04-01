@@ -38,6 +38,8 @@ static const int32 NumTexelCorners = 4;
 class FStaticLightingSettings 
 {
 public:
+	bool bGenerateVisibilityData;
+
 	/** Debugging - whether to allow multiple static lighting threads. */
 	bool bAllowMultiThreadedStaticLighting;
 
