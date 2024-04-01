@@ -39,6 +39,7 @@ class FStaticLightingSettings
 {
 public:
 	bool bGenerateVisibilityData;
+	bool bEnableVisibilityBounceReflectance;
 
 	/** Debugging - whether to allow multiple static lighting threads. */
 	bool bAllowMultiThreadedStaticLighting;

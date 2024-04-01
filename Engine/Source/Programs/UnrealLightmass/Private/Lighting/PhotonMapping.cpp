@@ -2735,7 +2735,7 @@ void FStaticLightingSystem::EmitVisPhotonsWorkRange(
 				checkSlow(NewWorldPathDirection.IsUnit3());
 			}
 			// 产生下一次ray并求交
-			const FVector4 RayStart = IntersectionVertexWithTangents.WorldPosition
+			FVector4 RayStart = IntersectionVertexWithTangents.WorldPosition
 				+ NewWorldPathDirection * SceneConstants.VisibilityRayOffsetDistance
 				+ IntersectionVertexWithTangents.WorldTangentZ * SceneConstants.VisibilityNormalOffsetDistance;
 			FVector4 RayEnd = IntersectionVertexWithTangents.WorldPosition + NewWorldPathDirection * MaxRayDistance;
@@ -2754,6 +2754,29 @@ void FStaticLightingSystem::EmitVisPhotonsWorkRange(
 			SampleRay.TraceFlags |= LIGHTRAY_FLIP_SIDEDNESS;
 			AggregateMesh->IntersectLightRay(SampleRay, true, true, false, CoherentRayCache, PathIntersection);
 			WorldPathDirection = NewWorldPathDirection;
+
+			// 若该ray没有成功，则按照一定策略进行反射并再次尝试
+			if (!PathIntersection.bIntersects && GeneralSettings.bEnableVisibilityBounceReflectance)
+			{
+				// 反射的距离暂时定为SceneConstants.VisibilityRayOffsetDistance
+				RayStart = RayStart + NewWorldPathDirection * SceneConstants.VisibilityRayOffsetDistance;
+				NewWorldPathDirection = NewWorldPathDirection - 2 * Dot3(NewWorldPathDirection, IntersectionVertexWithTangents.WorldTangentZ) 
+					* IntersectionVertexWithTangents.WorldTangentZ;
+				RayEnd = RayStart + NewWorldPathDirection * MaxRayDistance;
+				if (!ClipLineWithBox(Input.ImportanceBounds.GetBox(), RayStart, RayEnd, ClippedStart, ClippedEnd))
+				{
+					break;
+				}
+				SampleRay = FLightRay(
+					RayStart,
+					RayEnd,
+					NULL,
+					NULL
+				);
+				SampleRay.TraceFlags |= LIGHTRAY_FLIP_SIDEDNESS;
+				AggregateMesh->IntersectLightRay(SampleRay, true, true, false, CoherentRayCache, PathIntersection);
+				WorldPathDirection = NewWorldPathDirection;
+			}
 		}
 	}
 	// Indicate to the main thread that this output is ready for processing

@@ -55,6 +55,10 @@ struct FLightmassWorldInfoSettings
 	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
 	uint8 bGenerateVisibilityData : 1;
 
+	/** 是否进行表面bounce的后续反射*/
+	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
+		uint8 bEnableVisibilityBounceReflectance : 1;
+
 	/** 
 	 * Warning: Setting this to less than 1 will greatly increase build times!
 	 * Scale of the level relative to real world scale (1 Unreal Unit = 1 cm). 
@@ -201,6 +205,7 @@ struct FLightmassWorldInfoSettings
 
 	FLightmassWorldInfoSettings()
 		: bGenerateVisibilityData(false)
+		, bEnableVisibilityBounceReflectance(false)
 		, StaticLightingLevelScale(1)
 		, NumIndirectLightingBounces(3)
 		, NumSkyLightingBounces(1)
