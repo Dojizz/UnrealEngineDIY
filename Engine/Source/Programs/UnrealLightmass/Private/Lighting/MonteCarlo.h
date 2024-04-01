@@ -22,6 +22,9 @@ namespace Lightmass
 	 */
 	FVector4 GetUniformHemisphereVector(FLMRandomStream& RandomStream, float MaxTheta = (float)HALF_PI);
 
+	/** 在整个球面上均匀采样*/
+	FVector4 GetUniformSphereVector(FLMRandomStream& RandomStream);
+
 	/** 
 	 * Generates a pseudo-random unit vector in the Z > 0 hemisphere whose PDF == cos(theta) / PI in solid angles,
 	 * Which is sin(theta)cos(theta) / PI in hemispherical coordinates.

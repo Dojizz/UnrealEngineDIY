@@ -81,6 +81,17 @@ FVector4 GetUniformHemisphereVector(FLMRandomStream& RandomStream, float MaxThet
 	return FVector4(FMath::Cos(Phi) * SinTheta, FMath::Sin(Phi) * SinTheta, FMath::Cos(Theta));
 }
 
+FVector4 GetUniformSphereVector(FLMRandomStream& RandomStream)
+{
+	const float Theta = (float)PI * RandomStream.GetFraction();
+	const float Phi = 2.0f * (float)PI * RandomStream.GetFraction();
+	checkSlow(Theta >= 0 && Theta <= (float)PI);
+	checkSlow(Phi >= 0 && Phi <= 2.0f * (float)PI); 
+	const float SinTheta = FMath::Sin(Theta);
+	// Convert to Cartesian
+	return FVector4(FMath::Cos(Phi) * SinTheta, FMath::Sin(Phi) * SinTheta, FMath::Cos(Theta));
+}
+
 /** 
  * Generates a pseudo-random unit vector in the Z > 0 hemisphere whose PDF == cos(theta) / PI in solid angles,
  * Which is sin(theta)cos(theta) / PI in hemispherical coordinates.

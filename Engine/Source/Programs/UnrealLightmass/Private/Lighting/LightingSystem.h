@@ -1030,6 +1030,12 @@ public:
 	/** Size of the raw visibility data exported. */
 	SIZE_T PrecomputedVisibilityDataBytes;
 
+	/** 记录vis photon数*/
+	int32 NumVisPhotonsGathered;
+
+	/** 记录vis总的路径数*/
+	int32 NumVisPhotonPathsGathered;
+
 	/** Main thread time emitting direct photons */
 	float EmitDirectPhotonsTime;
 
@@ -1158,6 +1164,8 @@ public:
 		NumPrecomputedVisibilityMeshes(0),
 		NumPrecomputedVisibilityMeshesExcludedFromGroups(0),
 		PrecomputedVisibilityDataBytes(0),
+		NumVisPhotonsGathered(0),
+		NumVisPhotonPathsGathered(0),
 		EmitDirectPhotonsTime(0),
 		EmitDirectPhotonsThreadTime(0),
 		DirectPhotonsTracingThreadTime(0),
@@ -1474,6 +1482,82 @@ protected:
 
 	/** true if the thread has been terminated by an unhandled exception. */
 	bool bTerminatedByError;
+};
+
+/** vis data数据计算input*/
+class FVisPhotonEmittingInput
+{
+public:
+	const FBoxSphereBounds& ImportanceBounds;
+	const FSceneLightPowerDistribution& LightDistribution;
+	// 若有light distribution，则按light进行采样，否则按skylight进行
+	FVisPhotonEmittingInput(
+		const FBoxSphereBounds& InImportanceBounds,
+		const FSceneLightPowerDistribution& InLightDistribution)
+		:
+		ImportanceBounds(InImportanceBounds),
+		LightDistribution(InLightDistribution)
+	{}
+};
+
+/** workrange用于指定当前thread的index+目标emit数 */
+class FVisPhotonEmittingWorkRange
+{
+public:
+	const int32 RangeIndex;
+	const int32 NumVisPhotonsToEmit; // 代表有效photon path的数量
+	FVisPhotonEmittingWorkRange(
+		int32 InRangeIndex,
+		int32 InNumVisPhotonsToEmit)
+		:
+		RangeIndex(InRangeIndex),
+		NumVisPhotonsToEmit(InNumVisPhotonsToEmit)
+	{}
+};
+
+/** 存储当前thread是否完成，以及计算结果photons*/
+class FVisPhotonEmittingOutput
+{
+public:
+	/**
+	 * A worker thread will increment this counter once the output is complete,
+	 * so that the main thread can process it while the worker thread moves on.
+	 */
+	volatile int32 OutputComplete;
+	int32 NumPhotonsGathered;
+	int32 NumPathsGathered;
+	TArray<FPhoton> VisPhotons;
+
+	FVisPhotonEmittingOutput() :
+		OutputComplete(0),
+		NumPhotonsGathered(0),
+		NumPathsGathered(0)
+	{}
+};
+
+/** 计算vis数据的thread定义*/
+class FVisPhotonEmittingThreadRunnable : public FStaticLightingThreadRunnable
+{
+public:
+
+	/** Initialization constructor. */
+	FVisPhotonEmittingThreadRunnable(
+		FStaticLightingSystem* InSystem,
+		int32 InThreadIndex,
+		const FVisPhotonEmittingInput& InInput)
+		:
+		FStaticLightingThreadRunnable(InSystem, InThreadIndex),
+		Input(InInput)
+	{}
+
+	// FRunnable interface.
+	virtual bool Init(void) { return true; }
+	virtual void Exit(void) {}
+	virtual void Stop(void) {}
+	virtual uint32 Run(void); // TODOZZ: 需要实现这个
+
+protected:
+	const FVisPhotonEmittingInput& Input;
 };
 
 /** Input required to emit direct photons. */
@@ -2018,6 +2102,17 @@ private:
 
 	/** Caches samples for any sampling distributions that are known ahead of time, which greatly reduces noise in those estimates. */
 	void CacheSamples();
+
+	/** 参考photon流程做*/
+	void GenerateVisData();
+
+	/** 发射vis photon的线程入口*/
+	void EmitVisPhotonsThreadLoop(const FVisPhotonEmittingInput& input, int32 ThreadIndex);
+
+	/** 在给定workrange下发射vis photon*/
+	void EmitVisPhotonsWorkRange(const FVisPhotonEmittingInput& Input,
+		FVisPhotonEmittingWorkRange WorkRange,
+		FVisPhotonEmittingOutput& Output);
 
 	/** Sets up photon mapping settings. */
 	void InitializePhotonSettings();
@@ -2696,6 +2791,9 @@ private:
 	/** Non-zero if the volume distance field task should be exported. */
 	volatile int32 bShouldExportVolumeDistanceField;
 
+	/** 存储vis数据map*/
+	FPhotonOctree VisPhotonMap;
+
 	/** Number of direct photons to emit */
 	int32 NumDirectPhotonsToEmit;
 	/** Number of photons that were emitted until enough direct photons were gathered */
@@ -2831,6 +2929,11 @@ private:
 	/** The threads spawned by the static lighting system for processing mappings. */
 	TIndirectArray<FMappingProcessingThreadRunnable> Threads;
 
+	/** vis data的相关workrange*/
+	FThreadSafeCounter VisPhotonEmittingWorkRangeIndex;
+	TArray<FVisPhotonEmittingWorkRange> VisPhotonEmittingWorkRanges;
+	TArray<FVisPhotonEmittingOutput> VisPhotonEmittingOutputs;
+
 	/** Index of the next entry in DirectPhotonEmittingWorkRanges to process. */
 	FThreadSafeCounter DirectPhotonEmittingWorkRangeIndex;
 	TArray<FDirectPhotonEmittingWorkRange> DirectPhotonEmittingWorkRanges;
@@ -2875,6 +2978,7 @@ private:
 	friend class FStaticLightingMappingContext;
 	friend class FLightingCacheBase;
 	friend class FStaticLightingThreadRunnable;
+	friend class FVisPhotonEmittingThreadRunnable;
 	friend class FDirectPhotonEmittingThreadRunnable;
 	friend class FIndirectPhotonEmittingThreadRunnable;
 	friend class FIrradiancePhotonMarkingThreadRunnable;

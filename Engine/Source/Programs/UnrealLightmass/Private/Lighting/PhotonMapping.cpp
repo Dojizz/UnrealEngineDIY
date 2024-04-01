@@ -2506,20 +2506,14 @@ FLinearColor FStaticLightingSystem::CalculatePhotonExitantRadiance(
 
 
 // 实现load函数，将photon map从八叉树转换到<guid, array>
-// 具体来说，处理DirectPhotonMap，FirstBouncePhotonMap，SecondBouncePhotonMap
 void FStaticLightingSystem::BeginLoadPhotons() {
-	// 计算八叉树中元素个数，分配空间
-	int32 DirectPhotonsNum = DirectPhotonMap.GetElementCount();
-	int32 FirstBouncePhotonsNum = FirstBouncePhotonMap.GetElementCount();
-	int32 SecondBouncePhotonsNum = SecondBouncePhotonMap.GetElementCount();
+	// 计算VisPhotonMap八叉树中元素个数，分配空间
+	int32 VisPhotonsNum = VisPhotonMap.GetElementCount();
 	
 	// 全部加入PhotonsArray
-	PhotonsArray.Empty(DirectPhotonsNum + FirstBouncePhotonsNum + SecondBouncePhotonsNum);
+	PhotonsArray.Empty(VisPhotonsNum);
 	TArray<FPhotonElement>* PhotonsArrayPtr = &PhotonsArray;
-	DirectPhotonMap.GetElementArray(PhotonsArrayPtr);
-	FirstBouncePhotonMap.GetElementArray(PhotonsArrayPtr);
-	SecondBouncePhotonMap.GetElementArray(PhotonsArrayPtr);
-
+	VisPhotonMap.GetElementArray(PhotonsArrayPtr);
 }
 
 // TODOZZ: 此时使用的方法可以之后改进，先给出一个最简单的方式，计算radius内photon的数量
@@ -2528,22 +2522,242 @@ void FStaticLightingSystem::BeginComputeVisibilitySample() {
 	// 临时的判断逻辑是，只要sample的给定范围内存在photon，那么我就认为是可见的，visibility = 1，否则为0
 	// TODOZZ: 可以再调整，例如搜索范围的阈值
 	for (FVisibilitySamplePointElement& SamplePoint : VisibilitySamplePointsArray) {
-		if (FindAnyNearbyPhoton(DirectPhotonMap, SamplePoint.Sample.GetWorldPosition(),
-			SamplePoint.Sample.GetRadius(), false)) {
-			SamplePoint.Sample.Visibility = 1.f;
-			continue;
-		}
-		if (FindAnyNearbyPhoton(FirstBouncePhotonMap, SamplePoint.Sample.GetWorldPosition(),
-			SamplePoint.Sample.GetRadius(), false)) {
-			SamplePoint.Sample.Visibility = 1.f;
-			continue;
-		}
-		if (FindAnyNearbyPhoton(SecondBouncePhotonMap, SamplePoint.Sample.GetWorldPosition(),
+		if (FindAnyNearbyPhoton(VisPhotonMap, SamplePoint.Sample.GetWorldPosition(),
 			SamplePoint.Sample.GetRadius(), false)) {
 			SamplePoint.Sample.Visibility = 1.f;
 			continue;
 		}
 	}
+}
+
+void FStaticLightingSystem::GenerateVisData() {
+	const FBoxSphereBounds SceneSphereBounds = FBoxSphereBounds(AggregateMesh->GetBounds());
+	FBoxSphereBounds ImportanceVolumeBounds = GetImportanceBounds();
+	if (ImportanceVolumeBounds.SphereRadius < DELTA)
+	{
+		ImportanceVolumeBounds = SceneSphereBounds;
+	}
+	// 这个light分布不起任何作用
+	FSceneLightPowerDistribution LightDistribution;
+	const FVisPhotonEmittingInput Input(ImportanceVolumeBounds, LightDistribution);
+	int32 NumPhotonPaths = 200000;
+	int32 NumPhotonPathsRemaining = NumPhotonPaths; // 要发射且保证打到场景的path数
+	VisPhotonEmittingWorkRanges.Empty(NumPhotonWorkRanges);
+	for (int32 RangeIndex = 0; RangeIndex < NumPhotonWorkRanges - 1; RangeIndex++)
+	{
+		int NumPhotonPathsRange = FMath::Max(NumPhotonPaths / NumPhotonWorkRanges, 1);
+		if (NumPhotonPathsRemaining == 0)
+		{
+			NumPhotonPathsRange = 0;
+		}
+		NumPhotonPathsRemaining = FMath::Max(NumPhotonPathsRemaining - NumPhotonPathsRange, 0);
+		VisPhotonEmittingWorkRanges.Add(FVisPhotonEmittingWorkRange(RangeIndex, NumPhotonPathsRange));
+	}
+	// 最后一个workrange
+	VisPhotonEmittingWorkRanges.Add(FVisPhotonEmittingWorkRange(
+		NumPhotonWorkRanges - 1, NumPhotonPathsRemaining
+	));
+
+	VisPhotonEmittingOutputs.Empty(NumPhotonWorkRanges);
+	for (int32 RangeIndex = 0; RangeIndex < NumPhotonWorkRanges; RangeIndex++)
+	{
+		VisPhotonEmittingOutputs.Add(FVisPhotonEmittingOutput());
+	}
+
+	// Spawn threads
+	TIndirectArray<FVisPhotonEmittingThreadRunnable> VisPhotonEmittingThreads;
+	for (int32 ThreadIndex = 1; ThreadIndex < NumStaticLightingThreads; ThreadIndex++)
+	{
+		FVisPhotonEmittingThreadRunnable* ThreadRunnable = new FVisPhotonEmittingThreadRunnable(this, ThreadIndex, Input);
+		VisPhotonEmittingThreads.Add(ThreadRunnable);
+		const FString ThreadName = FString::Printf(TEXT("VisPhotonEmittingThread%u"), ThreadIndex);
+		ThreadRunnable->Thread = FRunnableThread::Create(ThreadRunnable, *ThreadName);
+	}
+
+	VisPhotonMap = FPhotonOctree(ImportanceVolumeBounds.Origin, ImportanceVolumeBounds.BoxExtent.GetMax());
+	Stats.NumVisPhotonsGathered = 0;
+	Stats.NumVisPhotonPathsGathered = 0;
+	int32 NextOutputToProcess = 0;
+	while (VisPhotonEmittingWorkRangeIndex.GetValue() < VisPhotonEmittingWorkRanges.Num()
+		|| NextOutputToProcess < VisPhotonEmittingOutputs.Num())
+	{
+		EmitVisPhotonsThreadLoop(Input, 0);
+		// 主线程完成一个workrange任务后，处理此时所有threads的outputs
+		while (NextOutputToProcess < VisPhotonEmittingOutputs.Num()
+			&& VisPhotonEmittingOutputs[NextOutputToProcess].OutputComplete > 0)
+		{
+			const FVisPhotonEmittingOutput& CurrentOutput = VisPhotonEmittingOutputs[NextOutputToProcess];
+			for (int32 PhotonIndex = 0; PhotonIndex < CurrentOutput.VisPhotons.Num(); PhotonIndex++)
+			{
+				// Add direct photons to the direct photon map, which is an octree for now
+				VisPhotonMap.AddElement(FPhotonElement(CurrentOutput.VisPhotons[PhotonIndex]));
+			}
+			Stats.NumVisPhotonsGathered += CurrentOutput.NumPhotonsGathered;
+			Stats.NumVisPhotonPathsGathered += CurrentOutput.NumPathsGathered;
+			NextOutputToProcess++;
+		}
+	}
+
+	// Wait until all worker threads have completed
+	for (int32 ThreadIndex = 0; ThreadIndex < VisPhotonEmittingThreads.Num(); ThreadIndex++)
+	{
+		VisPhotonEmittingThreads[ThreadIndex].Thread->WaitForCompletion();
+		VisPhotonEmittingThreads[ThreadIndex].CheckHealth();
+		delete VisPhotonEmittingThreads[ThreadIndex].Thread;
+		VisPhotonEmittingThreads[ThreadIndex].Thread = NULL;
+	}
+
+	VisPhotonEmittingWorkRanges.Empty();
+	VisPhotonEmittingOutputs.Empty();
+}
+
+uint32 FVisPhotonEmittingThreadRunnable::Run()
+{
+
+	FixThreadGroupAffinity();
+
+#if defined(_MSC_VER) && !defined(XBOX)
+	if (!FPlatformMisc::IsDebuggerPresent())
+	{
+		__try
+		{
+			System->EmitVisPhotonsThreadLoop(Input, ThreadIndex);
+		}
+		__except (ReportCrash(GetExceptionInformation()))
+		{
+			ErrorMessage = GErrorHist;
+			bTerminatedByError = true;
+		}
+	}
+	else
+#endif
+	{
+		System->EmitVisPhotonsThreadLoop(Input, ThreadIndex);
+	}
+	return 0;
+}
+
+void FStaticLightingSystem::EmitVisPhotonsThreadLoop(const FVisPhotonEmittingInput& Input, int32 ThreadIndex)
+{
+	while (true)
+	{
+		const int32 RangeIndex = VisPhotonEmittingWorkRangeIndex.Increment() - 1;
+		if (RangeIndex < VisPhotonEmittingWorkRanges.Num())
+		{
+			EmitVisPhotonsWorkRange(Input, VisPhotonEmittingWorkRanges[RangeIndex], VisPhotonEmittingOutputs[RangeIndex]);
+			if (ThreadIndex == 0)
+			{
+				break; // 如果是主线程，就不继续循环，而是跳出去处理现在产生的output
+			}
+		}
+		else
+		{
+			break;
+		}
+	}
+}
+
+void FStaticLightingSystem::EmitVisPhotonsWorkRange(
+	const FVisPhotonEmittingInput& Input,
+	FVisPhotonEmittingWorkRange WorkRange,
+	FVisPhotonEmittingOutput& Output)
+{
+	FLMRandomStream RandomStream(WorkRange.RangeIndex);
+	Output.VisPhotons.Empty(FMath::TruncToInt(WorkRange.NumVisPhotonsToEmit * 3)); // 不知道多少合适
+	Output.NumPhotonsGathered = 0;
+	Output.NumPathsGathered = 0;
+	FCoherentRayCache CoherentRayCache;
+
+	// 开始发射光子直到有效的path数达到WorkRange.NumVisPhotonsToEmit
+	while (Output.NumPathsGathered < WorkRange.NumVisPhotonsToEmit)
+	{
+		int32 NumberOfPathVertices = 0;
+		// 利用input中volume bound进行photon采样
+		FLightRay SampleRay;
+		{
+			FVector4 SamplePosition = Input.ImportanceBounds.SphereRadius * GetUniformSphereVector(RandomStream)
+				+ Input.ImportanceBounds.Origin;
+			FVector4 SampleDirection = GetUniformSphereVector(RandomStream);
+			while (Dot3(Input.ImportanceBounds.Origin - SamplePosition, SampleDirection) < 0.f)
+				SampleDirection = GetUniformSphereVector(RandomStream);
+			SampleRay = FLightRay(SamplePosition, SamplePosition +
+				SampleDirection * Input.ImportanceBounds.SphereRadius * 2.f, NULL, NULL);
+			// 对每条ray只截取其在bounds内的部分
+			FVector4 ClippedStart, ClippedEnd;
+			if (!ClipLineWithBox(Input.ImportanceBounds.GetBox(), SampleRay.Start, SampleRay.End, ClippedStart, ClippedEnd))
+			{
+				continue;
+			}
+			SampleRay.End = ClippedEnd;
+		}
+		
+		// 与场景求交
+		FLightRayIntersection PathIntersection;
+		SampleRay.TraceFlags |= LIGHTRAY_FLIP_SIDEDNESS;
+		AggregateMesh->IntersectLightRay(SampleRay, true, true, true, CoherentRayCache, PathIntersection);
+		FVector4 WorldPathDirection = SampleRay.Direction.GetUnsafeNormal3();
+
+		// 若发生bounce且位置有效，则记录当前path
+		if (PathIntersection.bIntersects &&
+			Dot3(WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ) < 0.0f &&
+			Input.ImportanceBounds.GetBox().IsInside(PathIntersection.IntersectionVertex.WorldPosition))
+		{
+			Output.NumPathsGathered++;
+		}
+		else
+			continue;
+
+		// trace photon in a loop
+		while (PathIntersection.bIntersects && Dot3(WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ) < 0.0f)
+		{
+			NumberOfPathVertices++;
+			// 判断交点是否在bound内
+			if (Input.ImportanceBounds.GetBox().IsInside(PathIntersection.IntersectionVertex.WorldPosition))
+			{
+				const float RayLength = (SampleRay.Start - PathIntersection.IntersectionVertex.WorldPosition).Size3();
+				const FPhoton NewPhoton(Output.NumPhotonsGathered, PathIntersection.IntersectionVertex.WorldPosition, RayLength, -WorldPathDirection, PathIntersection.IntersectionVertex.WorldTangentZ, FLinearColor(), NumberOfPathVertices - 1);
+				Output.VisPhotons.Add(NewPhoton);
+				Output.NumPhotonsGathered++;
+			}
+			// 是否向下trace
+			if (NumberOfPathVertices >= GeneralSettings.NumIndirectLightingBounces)
+			{
+				break;
+			}
+			FStaticLightingVertex IntersectionVertexWithTangents(PathIntersection.IntersectionVertex);
+			FVector4 NewWorldPathDirection;
+			// 在vertex的WorldTangentZ半球上采样
+			{
+				FVector4 TangentPathDirection = GetCosineHemisphereVector(RandomStream);
+				checkSlow(TangentPathDirection.Z >= 0.0f);
+				checkSlow(TangentPathDirection.IsUnit3());
+				NewWorldPathDirection = IntersectionVertexWithTangents.TransformTangentVectorToWorld(TangentPathDirection);
+				checkSlow(NewWorldPathDirection.IsUnit3());
+			}
+			// 产生下一次ray并求交
+			const FVector4 RayStart = IntersectionVertexWithTangents.WorldPosition
+				+ NewWorldPathDirection * SceneConstants.VisibilityRayOffsetDistance
+				+ IntersectionVertexWithTangents.WorldTangentZ * SceneConstants.VisibilityNormalOffsetDistance;
+			FVector4 RayEnd = IntersectionVertexWithTangents.WorldPosition + NewWorldPathDirection * MaxRayDistance;
+			FVector4 ClippedStart, ClippedEnd;
+			if (!ClipLineWithBox(Input.ImportanceBounds.GetBox(), RayStart, RayEnd, ClippedStart, ClippedEnd))
+			{
+				break;
+			}
+			RayEnd = ClippedEnd;
+			SampleRay = FLightRay(
+				RayStart,
+				RayEnd,
+				NULL,
+				NULL
+			);
+			SampleRay.TraceFlags |= LIGHTRAY_FLIP_SIDEDNESS;
+			AggregateMesh->IntersectLightRay(SampleRay, true, true, false, CoherentRayCache, PathIntersection);
+			WorldPathDirection = NewWorldPathDirection;
+		}
+	}
+	// Indicate to the main thread that this output is ready for processing
+	FPlatformAtomics::InterlockedIncrement(&VisPhotonEmittingOutputs[WorkRange.RangeIndex].OutputComplete);
 }
 
 }

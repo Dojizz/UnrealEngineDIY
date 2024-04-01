@@ -144,6 +144,7 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 ,	VolumeLightingInterpolationOctree(FVector4(0,0,0), HALF_WORLD_MAX)
 ,	bShouldExportMeshAreaLightData(false)
 ,	bShouldExportVolumeDistanceField(false)
+,   VisPhotonMap(FVector4(0, 0, 0), HALF_WORLD_MAX)
 ,	NumPhotonsEmittedDirect(0)
 ,	DirectPhotonMap(FVector4(0,0,0), HALF_WORLD_MAX)
 ,	NumPhotonsEmittedFirstBounce(0)
@@ -665,7 +666,7 @@ void FStaticLightingSystem::MultithreadProcess()
 	if (GeneralSettings.bGenerateVisibilityData)
 	{
 		// 在这里进行对vis的计算
-
+		GenerateVisData();
 	}
 
 	if (PhotonMappingSettings.bUsePhotonMapping)
