@@ -2206,6 +2206,8 @@ void FLightmassExporter::WriteSceneSettings( Lightmass::FSceneFileHeader& Scene 
 		Scene.GeneralSettings.IndirectLightingQuality = LevelSettings.IndirectLightingQuality;
 		Scene.GeneralSettings.bGenerateVisibilityData = LevelSettings.bGenerateVisibilityData;
 		Scene.GeneralSettings.bEnableVisibilityBounceReflectance = LevelSettings.bEnableVisibilityBounceReflectance;
+		Scene.GeneralSettings.bGenerateUniformVisibilitySamples = LevelSettings.bGenerateUniformVisibilitySamples;
+		Scene.GeneralSettings.bWriteVisToLightmap = LevelSettings.bWriteVisToLightmap;
 
 		if (QualityLevel == Quality_Preview)
 		{
@@ -3465,7 +3467,7 @@ bool FLightmassProcessor::CompleteRun()
 	if ( !bProcessingFailed && !GEditor->GetMapBuildCancelled() )
 	{
 		ImportVolumeSamples();
-
+		
 		ImportDebugPoints();
 
 		if (Exporter->VolumetricLightmapTaskGuids.Num() > 0)
@@ -3654,6 +3656,7 @@ void FLightmassProcessor::ImportVolumeSamples()
 /** 同上，需要一个函数用于import photons*/
 void FLightmassProcessor::ImportDebugPoints()
 {
+	
 	// 这里需要参考lightmass端的数据传输再写，即FLightmassSolverExporter::ExportPhotons
 	if (PhotonsTaskCompleted > 0) {
 		const FString ChannelName = Lightmass::CreateChannelName(Lightmass::DebugPointsGuid, Lightmass::LM_PHOTONS_VERSION, Lightmass::LM_PHOTONS_EXTENSION);
@@ -3675,6 +3678,8 @@ void FLightmassProcessor::ImportDebugPoints()
 			Swarm.ReadChannel(Channel, &NumSamples, sizeof(NumSamples));
 			TArray<Lightmass::FVisibilitySampleData> Samples;
 			ReadArray(Channel, Samples);
+
+			//UE_LOG(LogLightmassSolver, Log, TEXT("Reading photon number: %d, visibility points number: %d"), Photons.Num(), Samples.Num());
 
 			// Only build precomputed light for visible streamed levels
 			if (CurrentLevel && CurrentLevel->bIsVisible)

@@ -2607,6 +2607,9 @@ void FStaticLightingSystem::GenerateVisData() {
 		VisPhotonEmittingThreads[ThreadIndex].Thread = NULL;
 	}
 
+	LogSolverMessage(FString::Printf(TEXT("Number of collected vis photon: %d"), Stats.NumVisPhotonsGathered));
+
+
 	VisPhotonEmittingWorkRanges.Empty();
 	VisPhotonEmittingOutputs.Empty();
 }

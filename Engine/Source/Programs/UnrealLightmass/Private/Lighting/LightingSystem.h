@@ -2580,6 +2580,14 @@ private:
 		bool bDebugThisMapping,
 		const FLight* Light) const;
 
+	void CalculateVisLightMap(
+		FStaticLightingTextureMapping* TextureMapping,
+		FStaticLightingMappingContext& MappingContext,
+		FGatheredLightMapData2D& LightMapData,
+		TMap<const FLight*, FShadowMapData2D*>& ShadowMaps,
+		const FTexelToVertexMap& TexelToVertexMap,
+		bool bDebugThisMapping) const;
+
 	/**
 	 * Calculate lighting from area lights, no filtering in texture space.  
 	 * Shadow penumbras will be correctly shaped and will be softer for larger light sources and distant shadow casters.

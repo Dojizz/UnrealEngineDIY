@@ -352,51 +352,57 @@ FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOpti
 	}
 
 	// TODOZZ: 在这里利用Meshes的信息对其进行采样，这里mesh面片数上来后可能会有效率问题
-	int32 VisibilitySamplePointsNum = 10000;
-	TArray<float> StaticMeshPDF;
-	TArray<float> StaticMeshCDF;
-	TArray<TArray<float>> StaticMeshSurfaceAreaCDFs;
-	StaticMeshPDF.Empty(Meshes.Num() - StaticMeshIndexOffset);
-	StaticMeshCDF.Empty(Meshes.Num() - StaticMeshIndexOffset);
-	StaticMeshSurfaceAreaCDFs.Empty(Meshes.Num() - StaticMeshIndexOffset);
-	VisibilitySamplePointsArray.Empty(VisibilitySamplePointsNum);
-	for (int32 MeshIndex = StaticMeshIndexOffset; MeshIndex < Meshes.Num(); MeshIndex++)
+	VisibilitySamplePointsArray.Empty();
+	if (GeneralSettings.bGenerateUniformVisibilitySamples)
 	{
-		// 保证是FStaticMeshStaticLightingMesh
-		auto CurrentMesh = Meshes[MeshIndex];
-		if (CurrentMesh) {
-			// 计算mesh的面积，加入pdf
-			float CurrentArea;
-			TArray<float> StaticMeshSurfaceAreaCDF;
-			// 计算对每个mesh的三角形进行采样的CDF
-			CurrentMesh->CalculateMeshSurfaceCDF(StaticMeshSurfaceAreaCDF, CurrentArea);
-			StaticMeshPDF.Add(CurrentArea);
-			StaticMeshSurfaceAreaCDFs.Add(StaticMeshSurfaceAreaCDF);
+		int32 VisibilitySamplePointsNum = 10000;
+		TArray<float> StaticMeshPDF;
+		TArray<float> StaticMeshCDF;
+		TArray<TArray<float>> StaticMeshSurfaceAreaCDFs;
+		StaticMeshPDF.Empty(Meshes.Num() - StaticMeshIndexOffset);
+		StaticMeshCDF.Empty(Meshes.Num() - StaticMeshIndexOffset);
+		StaticMeshSurfaceAreaCDFs.Empty(Meshes.Num() - StaticMeshIndexOffset);
+		VisibilitySamplePointsArray.Empty(VisibilitySamplePointsNum);
+		for (int32 MeshIndex = StaticMeshIndexOffset; MeshIndex < Meshes.Num(); MeshIndex++)
+		{
+			// 保证是FStaticMeshStaticLightingMesh
+			auto CurrentMesh = Meshes[MeshIndex];
+			if (CurrentMesh) {
+				// 计算mesh的面积，加入pdf
+				float CurrentArea;
+				TArray<float> StaticMeshSurfaceAreaCDF;
+				// 计算对每个mesh的三角形进行采样的CDF
+				CurrentMesh->CalculateMeshSurfaceCDF(StaticMeshSurfaceAreaCDF, CurrentArea);
+				StaticMeshPDF.Add(CurrentArea);
+				StaticMeshSurfaceAreaCDFs.Add(StaticMeshSurfaceAreaCDF);
+			}
+		}
+		float _;
+		CalculateStep1dCDF(StaticMeshPDF, StaticMeshCDF, _);
+		FLMRandomStream RandomStream(0);
+		// 进行指定数量的采样，写入VisibilitySamplePointsArray
+		for (int32 SampleNum = 0; SampleNum < VisibilitySamplePointsNum; SampleNum++)
+		{
+			// 采样mesh
+			int32 MeshIndex;
+			int32 TriangleIndex;
+			SimpleSample1dCDF(StaticMeshCDF, RandomStream, MeshIndex);
+			// 采样mesh上三角形
+			auto CurrentMesh = Meshes[MeshIndex];
+			SimpleSample1dCDF(StaticMeshSurfaceAreaCDFs[MeshIndex], RandomStream, TriangleIndex);
+			// 采样三角形上点，加入VisibilitySamplePointsArray
+			int32 ElementIndex;
+			FStaticLightingVertex v0, v1, v2;
+			float a, b, c;
+			CurrentMesh->GetTriangle(TriangleIndex, v0, v1, v2, ElementIndex);
+			SampleBarycentricTriangle(RandomStream, a, b, c);
+			FVector4 WorldPosition = a * v0.WorldPosition + b * v1.WorldPosition + c * v2.WorldPosition;
+			FVector4 WorldNormal = a * v0.WorldTangentZ + b * v1.WorldTangentZ + c * v2.WorldTangentZ;
+			VisibilitySamplePointsArray.Add(FVisibilitySamplePointElement(FVisibilitySamplePoint(WorldPosition, WorldNormal)));
 		}
 	}
-	float _;
-	CalculateStep1dCDF(StaticMeshPDF, StaticMeshCDF, _);
-	FLMRandomStream RandomStream(0);
-	// 进行指定数量的采样，写入VisibilitySamplePointsArray
-	for (int32 SampleNum = 0; SampleNum < VisibilitySamplePointsNum; SampleNum++)
-	{
-		// 采样mesh
-		int32 MeshIndex;
-		int32 TriangleIndex;
-		SimpleSample1dCDF(StaticMeshCDF, RandomStream, MeshIndex);
-		// 采样mesh上三角形
-		auto CurrentMesh = Meshes[MeshIndex];
-		SimpleSample1dCDF(StaticMeshSurfaceAreaCDFs[MeshIndex], RandomStream, TriangleIndex);
-		// 采样三角形上点，加入VisibilitySamplePointsArray
-		int32 ElementIndex;
-		FStaticLightingVertex v0, v1, v2;
-		float a, b, c;
-		CurrentMesh->GetTriangle(TriangleIndex, v0, v1, v2, ElementIndex);
-		SampleBarycentricTriangle(RandomStream, a, b, c);
-		FVector4 WorldPosition = a * v0.WorldPosition + b * v1.WorldPosition + c * v2.WorldPosition;
-		FVector4 WorldNormal = a * v0.WorldTangentZ + b * v1.WorldTangentZ + c * v2.WorldTangentZ;
-		VisibilitySamplePointsArray.Add(FVisibilitySamplePointElement(FVisibilitySamplePoint(WorldPosition, WorldNormal)));
-	}
+
+	
 
 #if USE_EMBREE	
 	if (Scene.EmbreeDevice)
@@ -776,9 +782,14 @@ void FStaticLightingSystem::MultithreadProcess()
 
 	// 此时thread应该都已经结束，开始处理光子
 	// 用于将photon写入FStaticLightingSystem的photon array
-	BeginLoadPhotons();
+	if (GeneralSettings.bGenerateVisibilityData) {
+		BeginLoadPhotons();
+	}
 	// 处理已经生成的visibility sample array
-	BeginComputeVisibilitySample();
+	if (GeneralSettings.bGenerateUniformVisibilitySamples) {
+		BeginComputeVisibilitySample();
+	}
+	
 	bShouldExportPhotonsData = true;
 	ExportNonMappingTasks();
 

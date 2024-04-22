@@ -907,7 +907,10 @@ void FStaticLightingSystem::ProcessTextureMapping(FStaticLightingTextureMapping*
 #endif
 
 	const double PaddingStart = FPlatformTime::Seconds();
-	
+	// 在这里计算vis的lightmap
+	if(GeneralSettings.bWriteVisToLightmap)
+		CalculateVisLightMap(TextureMapping, MappingContext, LightMapData, ShadowMaps, TexelToVertexMap, bDebugThisMapping);
+
 	FGatheredLightMapData2D PaddedLightMapData(TextureMapping->SizeX, TextureMapping->SizeY);
 	PadTextureMapping(TextureMapping, LightMapData, PaddedLightMapData, ShadowMaps, SignedDistanceFieldShadowMaps);
 	LightMapData.Empty();
@@ -1219,6 +1222,7 @@ void FStaticLightingSystem::SetupTextureMapping(
 	AdjustRepresentativeSurfelForTexelsTextureMapping(TextureMapping, TexelToVertexMap, TexelToCornersMap, &LightMapData, MappingContext, bDebugThisMapping);
 }
 
+
 /** Calculates direct lighting as if all lights were non-area lights, then filters the results in texture space to create approximate soft shadows. */
 void FStaticLightingSystem::CalculateDirectLightingTextureMappingFiltered(
 	FStaticLightingTextureMapping* TextureMapping, 
@@ -1393,6 +1397,47 @@ void FStaticLightingSystem::CalculateDirectLightingTextureMappingFiltered(
 		{
 			delete FilteredShadowMapData;
 			FilteredShadowMapData = NULL;
+		}
+	}
+}
+
+// 实现vis data对lightmap的写入
+void FStaticLightingSystem::CalculateVisLightMap(
+	FStaticLightingTextureMapping* TextureMapping,
+	FStaticLightingMappingContext& MappingContext,
+	FGatheredLightMapData2D& LightMapData,
+	TMap<const FLight*, FShadowMapData2D*>& ShadowMaps,
+	const FTexelToVertexMap& TexelToVertexMap,
+	bool bDebugThisMapping) const
+{
+	for (int32 Y = 0; Y < TextureMapping->CachedSizeY; Y++)
+	{
+		for (int32 X = 0; X < TextureMapping->CachedSizeX; X++)
+		{
+			const FTexelToVertex& TexelToVertex = TexelToVertexMap(X, Y);
+			if (TexelToVertex.TotalSampleWeight > 0.0f) {
+				FVector WorldPosition = TexelToVertex.GetVertex().WorldPosition;
+				FGatheredLightMapSample& Sample = LightMapData(X, Y);
+				// 在这里测试新的计算方法，判断一定距离内的photon是否在同一平面上
+				TArray<FPhoton> FoundPhotons;
+				FFindNearbyPhotonStats DummyStats;
+				FindNearbyPhotonsIterative(VisPhotonMap, WorldPosition, TexelToVertex.GetVertex().WorldTangentZ,
+					1, 10.f, 10.f, false, false, FoundPhotons, DummyStats);
+
+				if (FoundPhotons.Num() == 0)
+				{
+					Sample.HighQuality.AddWeighted(FGatheredLightSampleUtil::AmbientLight<2>
+						(FLinearColor::Black), 100.0f);
+					Sample.LowQuality.AddWeighted(FGatheredLightSampleUtil::AmbientLight<2>
+						(FLinearColor::Black), 100.0f);
+				}
+				else {
+					Sample.HighQuality.AddWeighted(FGatheredLightSampleUtil::AmbientLight<2>
+						(FLinearColor::White), 100.0f);
+					Sample.LowQuality.AddWeighted(FGatheredLightSampleUtil::AmbientLight<2>
+						(FLinearColor::White), 100.0f);
+				}
+			}
 		}
 	}
 }

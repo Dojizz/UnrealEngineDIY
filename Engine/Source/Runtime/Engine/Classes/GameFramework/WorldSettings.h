@@ -57,7 +57,15 @@ struct FLightmassWorldInfoSettings
 
 	/** 是否进行表面bounce的后续反射*/
 	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
-		uint8 bEnableVisibilityBounceReflectance : 1;
+	uint8 bEnableVisibilityBounceReflectance : 1;
+
+	/** 是否进行表面均匀采样，在大场景下，这一功能似乎会导致crash，故添加一个控制来关闭*/
+	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
+	uint8 bGenerateUniformVisibilitySamples : 1;
+
+	/** 是否进行可见性对lightmap的写入，这会导致烘焙结果不正确*/
+	UPROPERTY(EditAnywhere, Category = LightmassGeneral)
+	uint8 bWriteVisToLightmap : 1;
 
 	/** 
 	 * Warning: Setting this to less than 1 will greatly increase build times!
